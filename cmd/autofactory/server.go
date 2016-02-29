@@ -6,7 +6,7 @@ import (
 	"github.com/mohae/autofac"
 )
 
-type Server struct {
+type server struct {
 	// ID of the server
 	ID uint32
 	// Interval between pings
@@ -14,14 +14,14 @@ type Server struct {
 	// How long to wait for a pong response before timing out
 	PongWait time.Duration
 	// A map of clients, by ID
-	Clients map[uint32]*autofac.Client
+	Inventory inventory
 }
 
-func NewServer(id uint32) Server {
-	return Server{
+func newServer(id uint32) server {
+	return server{
 		ID:           id,
 		PingInterval: autofac.PingPeriod,
 		PongWait:     autofac.PongWait,
-		Clients:      map[uint32]*autofac.Client{},
+		Inventory:    newInventory(),
 	}
 }

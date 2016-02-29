@@ -44,7 +44,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	if len(b) == 0 {
 		fmt.Println("*** new client ***")
 		// get a new client and its ID
-		cl = inventory.NewClient()
+		cl = fac.Inventory.NewClient()
 		fmt.Printf("new ID: %d\n", cl.ID)
 		id := make([]byte, 4)
 		binary.LittleEndian.PutUint32(id, cl.ID)
@@ -57,9 +57,9 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Println("*** existing client ***")
 	message = fmt.Sprintf("welcome back %X", b)
-	cl, ok = inventory.Client(binary.LittleEndian.Uint32(b))
+	cl, ok = fac.Inventory.Client(binary.LittleEndian.Uint32(b))
 	if !ok {
-		cl = inventory.NewClient()
+		cl = fac.Inventory.NewClient()
 		// send the new client ID
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, cl.ID)
