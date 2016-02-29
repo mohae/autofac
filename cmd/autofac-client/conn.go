@@ -20,28 +20,31 @@ var upgrader = websocket.Upgrader{
 
 func connHandler(c *autofac.Client, doneCh chan struct{}) {
 	defer c.WS.Close()
+
 	// Send the client's ID; if it's empty or can't be found, the server will
-	// respond with one
+	// respond with one.  Retry until the server responds, or until the
+	// reconnectPeriod has expired.
 	var err error
+	var typ int
+	var p []byte
+	b := make([]byte, 4)
 	if c.ID > 0 {
-		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, c.ID)
-		err = c.WS.WriteMessage(websocket.BinaryMessage, b)
-	} else {
-		var b []byte
-		err = c.WS.WriteMessage(websocket.BinaryMessage, b)
 	}
+	err = c.WS.WriteMessage(websocket.BinaryMessage, b)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		close(doneCh)
 		return
 	}
-	typ, p, err := c.WS.ReadMessage()
+
+	typ, p, err = c.WS.ReadMessage()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
 		close(doneCh)
 		return
 	}
+
 	fmt.Printf("hello response: %d: %v\n", typ, p)
 	switch typ {
 	case websocket.BinaryMessage:

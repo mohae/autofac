@@ -5,15 +5,18 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"github.com/mohae/autofac"
 )
 
 // flags
 var (
-	addr = flag.String("addr", "127.0.0.1:8675", "")
+	addr            = flag.String("addr", "127.0.0.1:8675", "")
+	reconnectPeriod = flag.String("reconnectperiod", "5m", "the amount of time to try and reconnect before quiting")
 )
 
+var reconnectDuration time.Duration
 var cfg Cfg
 
 // Cfg holds the client cfg
@@ -29,6 +32,12 @@ func main() {
 
 func realMain() int {
 	flag.Parse()
+	var err error
+	reconnectDuration, err = time.ParseDuration(*reconnectPeriod)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse of reconnect period failed: %s\n", err)
+		return 1
+	}
 
 	// get a client
 	c := autofac.NewClient(cfg.ID)
@@ -37,13 +46,22 @@ func realMain() int {
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
 
-	// connect to server
-	err := c.DialServer()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", c.ServerURL.String(), err)
-		return 1
+	start := time.Now()
+	retryEnd := start.Add(reconnectDuration)
+	// connect to server; retry until the retry period has expired
+	for {
+		if time.Now().After(retryEnd) {
+			fmt.Fprintln(os.Stderr, "timed out while trying to connect to the server")
+			close(doneCh)
+			return 1
+		}
+		err = c.DialServer()
+		if err == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+		fmt.Println("unable to connect to the server: retrying...")
 	}
-
 	// start the connection handler
 	go connHandler(c, doneCh)
 

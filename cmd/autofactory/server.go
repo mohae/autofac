@@ -15,6 +15,10 @@ type server struct {
 	PongWait time.Duration
 	// A map of clients, by ID
 	Inventory inventory
+	// TODO: add handling to prevent the same client from connecting
+	// more than once:  this requires detection of reconnect of an
+	// existing client vs an existing client maintaining multiple
+	// con-current connections
 }
 
 func newServer(id uint32) server {

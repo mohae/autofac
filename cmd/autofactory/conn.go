@@ -33,7 +33,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 	// if messageType isn't BinaryMessage, reject
 	if typ != websocket.BinaryMessage {
-		c.WriteMessage(websocket.TextMessage, []byte("invalid socket initiation request"))
+		c.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request"))
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
@@ -41,7 +41,14 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	var cl *autofac.Client
 	var message string
 	var ok bool
-	if len(b) == 0 {
+	// decode the byte (should be len 4); if something else, reject
+	if len(b) != 4 {
+		c.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request: malformed ID"))
+		fmt.Fprintf(os.Stderr, "invalid socket initiation request: malformed ID\n")
+		return
+	}
+	id := binary.LittleEndian.Uint32(b)
+	if id == 0 {
 		fmt.Println("*** new client ***")
 		// get a new client and its ID
 		cl = fac.Inventory.NewClient()
@@ -56,8 +63,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("*** existing client ***")
-	message = fmt.Sprintf("welcome back %X", b)
-	cl, ok = fac.Inventory.Client(binary.LittleEndian.Uint32(b))
+	message = fmt.Sprintf("welcome back %X", id)
+	cl, ok = fac.Inventory.Client(id)
 	if !ok {
 		cl = fac.Inventory.NewClient()
 		// send the new client ID
@@ -84,6 +91,7 @@ listen:
 			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 			return
 		}
+		fmt.Printf("message read: %d: %v\n", typ, p)
 		// not doing anything with the type for now
 		switch typ {
 		case websocket.BinaryMessage:

@@ -9,7 +9,7 @@ import (
 
 type inventory struct {
 	clients map[uint32]*autofac.Client
-	mu      *sync.Mutex
+	mu      sync.Mutex
 }
 
 func newInventory() inventory {
