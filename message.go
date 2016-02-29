@@ -1,18 +1,20 @@
 package autofac
 
 import (
+	"encoding/binary"
 	"time"
 
 	"github.com/mohae/autofac/util"
 )
+
 // Message is a description of a communication between end-points.
 type Message struct {
 	// ID of the message
-	ID   [16]byte
+	ID [16]byte
 	// ID of the destination
 	DestID uint32
-	Type int
-	Data []byte
+	Type   int
+	Data   []byte
 }
 
 func NewMessage(source uint32) Message {
@@ -25,9 +27,11 @@ func NewMessage(source uint32) Message {
 // randomBits: uint32
 func newMessageID(source uint32) [16]byte {
 	var id [16]byte
-	tb := util.Int64ToBytes(time.Now().UnixNano())
-	sid := util.Uint32ToBytes(source)
-	r := util.Uint32ToBytes(util.RandUint32())
+	sid := make([]byte, 4)
+	r := make([]byte, 4)
+	tb := util.Int64ToByteSlice(time.Now().UnixNano())
+	binary.LittleEndian.PutUint32(sid, source)
+	binary.LittleEndian.PutUint32(r, util.RandUint32())
 	id[0] = tb[0]
 	id[1] = tb[1]
 	id[2] = tb[2]

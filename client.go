@@ -1,36 +1,49 @@
 package autofac
 
 import (
+	"net/url"
+	"time"
+
 	"github.com/gorilla/websocket"
+)
+
+var (
+	WriteWait  = 5 * time.Second
+	PongWait   = 30 * time.Second
+	PingPeriod = 25 * time.Second
 )
 
 // Client is anything that talks to the server.
 type Client struct {
-	ID   uint32	`json:"id"`
-	Datacenter string `json:"datacenter"`
-	Groups []string `json:"groups"`
-	Roles []string `json:"roles"`
-	ws   *websocket.Conn
-	send chan Message
-}
-
-// Send sends the message to the server
-func (c *Client) Write(msg Message) error {
-	return c.ws.WriteMessage(msg.Type, msg.Data)
-}
-
-func (c *Client) Close() error {
-	close (c.send)
-	return c.ws.Close()
-}
-
-func (c *Client) Conn() *websocket.Conn {
-	return c.ws
+	ID         uint32   `json:"id"`
+	Datacenter string   `json:"datacenter"`
+	Groups     []string `json:"groups"`
+	Roles      []string `json:"roles"`
+	ServerURL  url.URL
+	WS         *websocket.Conn `json:"-"`
+	// channel for outbound messages
+	Send       chan Message  `json:"-"`
+	PingPeriod time.Duration `json:"-"`
+	PongWait   time.Duration `json:"-"`
+	WriteWait  time.Duration `json:"-"`
 }
 
 func NewClient(id uint32) *Client {
 	return &Client{
-		ID: id,
-		send: make(chan Message),
+		ID:         id,
+		PingPeriod: PingPeriod,
+		PongWait:   PongWait,
+		WriteWait:  WriteWait,
+		Send:       make(chan Message, 10),
 	}
+}
+
+func (c *Client) DialServer() error {
+	var err error
+	c.WS, _, err = websocket.DefaultDialer.Dial(c.ServerURL.String(), nil)
+	return err
+}
+
+func (c *Client) Close() error {
+	return c.WS.Close()
 }

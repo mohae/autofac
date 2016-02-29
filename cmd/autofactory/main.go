@@ -7,8 +7,8 @@ import (
 	"net/http"
 	"os"
 
-	_"github.com/gorilla/websocket"
-	_"github.com/mohae/autofac/util"
+	_ "github.com/gorilla/websocket"
+	_ "github.com/mohae/autofac/util"
 )
 
 // flags
@@ -26,12 +26,13 @@ func main() {
 func realMain() int {
 	flag.Parse()
 
-	b := make([]byte, 8)
-	b[4] = 127
-	b[5] = 0
-	b[6] = 0
-	b[7] = 0
-	v := uint32(binary.BigEndian.Uint64(b))
+	// todo: parse the addr to make this
+	b := make([]byte, 4)
+	b[0] = 127
+	b[1] = 0
+	b[2] = 0
+	b[3] = 1
+	v := binary.LittleEndian.Uint32(b)
 	fmt.Println(v)
 	s := NewServer(v)
 	_ = s

@@ -17,6 +17,7 @@ func NewInventory() Inventory {
         clients: map[uint32]*autofac.Client{},
     }
 }
+
 func (i *Inventory) AddClient(id uint32, c *autofac.Client) {
     // should collision detection be done/force update Client
     // if it exists?
