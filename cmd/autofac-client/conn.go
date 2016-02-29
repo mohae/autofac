@@ -13,11 +13,6 @@ import (
 	"github.com/mohae/autofac"
 )
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-}
-
 func connHandler(c *autofac.Client, doneCh chan struct{}) {
 	defer c.WS.Close()
 
@@ -55,10 +50,13 @@ func connHandler(c *autofac.Client, doneCh chan struct{}) {
 	case websocket.TextMessage:
 		fmt.Printf("%s\n", string(p))
 	default:
-		fmt.Printf("unexpected welcome response type %d: %v", typ, p)
+		fmt.Printf("unexpected welcome response type %d: %v\n", typ, p)
 	}
 
-	go messageReader(c, doneCh)
+	c.WS.SetPingHandler(c.PingHandler)
+	c.WS.SetPongHandler(c.PongHandler)
+	//go messageReader(c, doneCh)
+	go c.Listen(doneCh)
 
 	go messageWriter(c, doneCh)
 
@@ -70,7 +68,7 @@ func messageReader(c *autofac.Client, doneCh chan struct{}) {
 	for {
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading message: %s", err)
+			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 			return
 		}
 		switch typ {
@@ -100,14 +98,14 @@ func messageWriter(c *autofac.Client, doneCh chan struct{}) {
 			}
 			err := c.WS.WriteMessage(msg.Type, msg.Data)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing message: %s", err)
+				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 				return
 			}
 		case <-time.After(c.PingPeriod):
 			fmt.Println("send ping message")
-			err := c.WS.WriteMessage(websocket.PingMessage, []byte{})
+			err := c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "ping error: %s", err)
+				fmt.Fprintf(os.Stderr, "ping error: %s\n", err)
 				return
 			}
 		}

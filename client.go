@@ -1,7 +1,9 @@
 package autofac
 
 import (
+	"fmt"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -40,4 +42,46 @@ func (c *Client) DialServer() error {
 
 func (c *Client) Close() error {
 	return c.WS.Close()
+}
+
+func (c *Client) Listen(doneCh chan struct{}) {
+	// loop until there's a done signal
+	defer close(doneCh)
+	for {
+		fmt.Println("read message")
+		typ, p, err := c.WS.ReadMessage()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
+			return
+		}
+		switch typ {
+		case websocket.TextMessage:
+			fmt.Printf("textmessage: %s\n", p)
+			err := c.WS.WriteMessage(typ, p)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error writing text message: %s\n", err)
+				return
+			}
+		case websocket.BinaryMessage:
+			fmt.Printf("Binarymessage: %x\n", p)
+			err := c.WS.WriteMessage(typ, p)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
+				return
+			}
+		case websocket.CloseMessage:
+			fmt.Printf("closemessage: %x\n", p)
+			return
+		}
+	}
+}
+
+func (c *Client) PingHandler(msg string) error {
+	fmt.Printf("ping: %s\n", msg)
+	return c.WS.WriteMessage(websocket.PongMessage, []byte("pong"))
+}
+
+func (c *Client) PongHandler(msg string) error {
+	fmt.Printf("pong: %s\n", msg)
+	return c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
 }

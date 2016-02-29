@@ -63,7 +63,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fmt.Println("*** existing client ***")
-	message = fmt.Sprintf("welcome back %X", id)
+	message = fmt.Sprintf("welcome back %X\n", id)
 	cl, ok = fac.Inventory.Client(id)
 	if !ok {
 		cl = fac.Inventory.NewClient()
@@ -78,37 +78,23 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		message = fmt.Sprintf("welcome back; could not fine %X in inventory, new id: %X\n", b, cl.ID)
 	}
 	// send the welcome message
-	err = c.WriteMessage(websocket.TextMessage, []byte(message))
+	err = cl.WS.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error writing welcome message for %X: %s\n", cl.ID, err)
 		return
 	}
 
 listen:
-	for {
-		typ, p, err := c.ReadMessage()
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
-			return
-		}
-		fmt.Printf("message read: %d: %v\n", typ, p)
-		// not doing anything with the type for now
-		switch typ {
-		case websocket.BinaryMessage:
-			fmt.Printf("binary message: %x\n", p)
-		case websocket.TextMessage:
-			fmt.Printf("text message: %s\n", p)
-		case websocket.PingMessage:
-			fmt.Printf("ping message: %s\n", p)
-		case websocket.PongMessage:
-			fmt.Printf("pong message: %s\n", p)
-		case websocket.CloseMessage:
-			fmt.Printf("close message: %s\n", p)
-		}
-		err = c.WriteMessage(typ, p)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
-			return
-		}
-	}
+	// the client needs the current connection
+	cl.WS = c
+
+	// set the ping hanlder
+	cl.WS.SetPingHandler(cl.PingHandler)
+	cl.WS.SetPingHandler(cl.PongHandler)
+	// start a message handler for the client
+	doneCh := make(chan struct{})
+	go cl.Listen(doneCh)
+
+	// wait for the done signal
+	<-doneCh
 }
