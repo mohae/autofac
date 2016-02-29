@@ -5,23 +5,18 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofac"
 	//"github.com/mohae/autofac/util"
 )
 
-// Defaults
-var (
-	defaultPingInterval = time.Second * 25
-	defaultPongWait     = time.Second * 5
-	defaultBufferSize   = 1024
-)
-
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  defaultBufferSize,
-	WriteBufferSize: defaultBufferSize,
+	ReadBufferSize:  autofac.ReadBufferSize,
+	WriteBufferSize: autofac.WriteBufferSize,
+	CheckOrigin: func(r *http.Request) bool {
+		return true
+	},
 }
 
 func serveClient(w http.ResponseWriter, r *http.Request) {
@@ -42,19 +37,17 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
-	fmt.Println("** looking up client stuff **")
+	fmt.Println("*** looking up client stuff ***")
 	var cl *autofac.Client
 	var message string
 	var ok bool
 	if len(b) == 0 {
-		fmt.Println("** new client **")
+		fmt.Println("*** new client ***")
 		// get a new client and its ID
 		cl = inventory.NewClient()
-		fmt.Printf("snew ID: %d\n", cl.ID)
+		fmt.Printf("new ID: %d\n", cl.ID)
 		id := make([]byte, 4)
 		binary.LittleEndian.PutUint32(id, cl.ID)
-		fmt.Printf("new ID bytes: %v\n", id)
-		fmt.Println("wtfbbq")
 		err = c.WriteMessage(websocket.BinaryMessage, id)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing new client ID: %s\n", err)

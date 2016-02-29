@@ -7,12 +7,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-var (
-	WriteWait  = 5 * time.Second
-	PongWait   = 30 * time.Second
-	PingPeriod = 25 * time.Second
-)
-
 // Client is anything that talks to the server.
 type Client struct {
 	ID         uint32   `json:"id"`
