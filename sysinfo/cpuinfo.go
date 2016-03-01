@@ -34,109 +34,114 @@ func (c CPUStat) String() string {
 	return fmt.Sprintf("%s\t%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\n", c.Timestamp, c.CPUID, float32(c.Usr)/100.0, float32(c.Nice)/100.0, float32(c.Sys)/100.0, float32(c.IOWait)/100.0, float32(c.IRQ)/100.0, float32(c.Soft)/100.0, float32(c.Steal)/100.0, float32(c.Guest)/100.0, float32(c.GNice)/100.0, float32(c.Idle)/100.0)
 }
 
-// CPUStats gathers the cpu information for all cores and outputs them over
-// the outCh.  The interval is the duration between ticks.  CPU info is
-// gathered on each tick.
-func CPUStats(interval time.Duration, outCh chan []CPUStat, doneCh chan struct{}) {
+// CPUStatsTicker sends the gathered CPU stats to the outCh.  The interval is
+// the duration between ticks.  CPU info is gathered on each tick.
+func CPUStatsTicker(interval time.Duration, outCh chan []CPUStat, doneCh chan struct{}) {
 	defer close(doneCh)
-	var out bytes.Buffer
-
 	for {
 		select {
 		case <-time.Tick(interval):
-			cmd := exec.Command("mpstat", "-P", "ALL")
-			cmd.Stdout = &out
-			err := cmd.Run()
+			stats, err := CPUStats()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error getting cpu stats: %s\n", err)
 				return
 			}
-			var x int
-			var cpuStats []CPUStat
-			// process the output
-			for {
-				bs, err := out.ReadBytes(nl)
-				if err != nil {
-					if err == io.EOF {
-						break
-					}
-					fmt.Printf("error reading bytes from command execution: %s\n", err)
-					return
-				}
-				x++
-				// skip the first 4 lines
-				if x < 4 {
-					continue
-				}
-				// skip empty lines
-				if len(bs) == 0 {
-					continue
-				}
-				var cpuStat CPUStat
-				cpuStat.Timestamp = string(bs[:11])
-				// tmp holds the current field
-				tmp := make([]byte, 5)
-				// ndx is the counter into tmp
-				// fieldNum is used to match up the current value to its struct
-				// field; the number does not translate to the ndx
-				var ndx, fieldNum, i int
-				for _, v := range bs[12:] {
-					// 0x20 separates fields, there can be consecutive 0x20
-					// occurrences for proper output alignment (when displayed)
-					if v == 0x20 {
-						// if something has been saved to tmp, it needs to be
-						// written to the appropriate field
-						if ndx > 0 {
-							// CPUID is a string, so don't try to convert to int.
-							// convert everything else.
-							if fieldNum > 0 {
-								fmt.Println(string(tmp[:ndx]))
-								i, _ = strconv.Atoi(string(tmp[:ndx]))
-							}
-							switch fieldNum {
-							case 0:
-								cpuStat.CPUID = string(tmp[:ndx])
-							case 1:
-								cpuStat.Usr = i
-							case 2:
-								cpuStat.Nice = i
-							case 3:
-								cpuStat.Sys = i
-							case 4:
-								cpuStat.IOWait = i
-							case 5:
-								cpuStat.IRQ = i
-							case 6:
-								cpuStat.Soft = i
-							case 7:
-								cpuStat.Steal = i
-							case 8:
-								cpuStat.Guest = i
-							case 9:
-								cpuStat.GNice = i
-
-							}
-							fieldNum++
-						}
-						// reset for the next field
-						ndx = 0
-						continue
-					}
-					// skip . and nl
-					if v == 0x2E || v == nl {
-						continue
-					}
-					tmp[ndx] = v
-					ndx++
-				}
-				// the last element hasn't been saved, do it here
-				x, err := strconv.Atoi(string(tmp[:ndx]))
-				cpuStat.Idle = x
-				cpuStats = append(cpuStats, cpuStat)
-			}
-			// send the current stats
-			outCh <- cpuStats
-			out.Reset()
+			outCh <- stats
 		}
 	}
+}
+
+// CPUStats gathers the CPUStats for all CPUs using mpstat.
+func CPUStats() ([]CPUStat, error) {
+	var out bytes.Buffer
+	cmd := exec.Command("mpstat", "-P", "ALL")
+	cmd.Stdout = &out
+	err := cmd.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error getting cpu stats: %s\n", err)
+		return nil, err
+	}
+	var x int
+	var cpuStats []CPUStat
+	// process the output
+	for {
+		bs, err := out.ReadBytes(nl)
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			fmt.Printf("error reading bytes from command execution: %s\n", err)
+			return nil, err
+		}
+		x++
+		// skip the first 4 lines
+		if x < 4 {
+			continue
+		}
+		// skip empty lines
+		if len(bs) == 0 {
+			continue
+		}
+		var cpuStat CPUStat
+		cpuStat.Timestamp = string(bs[:11])
+		// tmp holds the current field
+		tmp := make([]byte, 5)
+		// ndx is the counter into tmp
+		// fieldNum is used to match up the current value to its struct
+		// field; the number does not translate to the ndx
+		var ndx, fieldNum, i int
+		for _, v := range bs[12:] {
+			// 0x20 separates fields, there can be consecutive 0x20
+			// occurrences for proper output alignment (when displayed)
+			if v == 0x20 {
+				// if something has been saved to tmp, it needs to be
+				// written to the appropriate field
+				if ndx > 0 {
+					// CPUID is a string, so don't try to convert to int.
+					// convert everything else.
+					if fieldNum > 0 {
+						fmt.Println(string(tmp[:ndx]))
+						i, _ = strconv.Atoi(string(tmp[:ndx]))
+					}
+					switch fieldNum {
+					case 0:
+						cpuStat.CPUID = string(tmp[:ndx])
+					case 1:
+						cpuStat.Usr = i
+					case 2:
+						cpuStat.Nice = i
+					case 3:
+						cpuStat.Sys = i
+					case 4:
+						cpuStat.IOWait = i
+					case 5:
+						cpuStat.IRQ = i
+					case 6:
+						cpuStat.Soft = i
+					case 7:
+						cpuStat.Steal = i
+					case 8:
+						cpuStat.Guest = i
+					case 9:
+						cpuStat.GNice = i
+
+					}
+					fieldNum++
+				}
+				// reset for the next field
+				ndx = 0
+				continue
+			}
+			// skip . and nl
+			if v == 0x2E || v == nl {
+				continue
+			}
+			tmp[ndx] = v
+			ndx++
+		}
+		// the last element hasn't been saved, do it here
+		x, err := strconv.Atoi(string(tmp[:ndx]))
+		cpuStat.Idle = x
+		cpuStats = append(cpuStats, cpuStat)
+	}
+	return cpuStats, nil
 }
