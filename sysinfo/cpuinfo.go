@@ -18,16 +18,16 @@ const nl = '\n'
 type CPUStat struct {
 	Timestamp string
 	CPUID     string
-	Usr       int
-	Nice      int
-	Sys       int
-	IOWait    int
-	IRQ       int
-	Soft      int
-	Steal     int
-	Guest     int
-	GNice     int
-	Idle      int
+	Usr       int16
+	Nice      int16
+	Sys       int16
+	IOWait    int16
+	IRQ       int16
+	Soft      int16
+	Steal     int16
+	Guest     int16
+	GNice     int16
+	Idle      int16
 }
 
 func (c CPUStat) String() string {
@@ -60,7 +60,7 @@ func CPUStats() ([]CPUStat, error) {
 		fmt.Fprintf(os.Stderr, "error getting cpu stats: %s\n", err)
 		return nil, err
 	}
-	var x int
+	var x, i int
 	var cpuStats []CPUStat
 	// process the output
 	for {
@@ -88,7 +88,7 @@ func CPUStats() ([]CPUStat, error) {
 		// ndx is the counter into tmp
 		// fieldNum is used to match up the current value to its struct
 		// field; the number does not translate to the ndx
-		var ndx, fieldNum, i int
+		var ndx, fieldNum int
 		for _, v := range bs[12:] {
 			// 0x20 separates fields, there can be consecutive 0x20
 			// occurrences for proper output alignment (when displayed)
@@ -106,24 +106,23 @@ func CPUStats() ([]CPUStat, error) {
 					case 0:
 						cpuStat.CPUID = string(tmp[:ndx])
 					case 1:
-						cpuStat.Usr = i
+						cpuStat.Usr = int16(i)
 					case 2:
-						cpuStat.Nice = i
+						cpuStat.Nice = int16(i)
 					case 3:
-						cpuStat.Sys = i
+						cpuStat.Sys = int16(i)
 					case 4:
-						cpuStat.IOWait = i
+						cpuStat.IOWait = int16(i)
 					case 5:
-						cpuStat.IRQ = i
+						cpuStat.IRQ = int16(i)
 					case 6:
-						cpuStat.Soft = i
+						cpuStat.Soft = int16(i)
 					case 7:
-						cpuStat.Steal = i
+						cpuStat.Steal = int16(i)
 					case 8:
-						cpuStat.Guest = i
+						cpuStat.Guest = int16(i)
 					case 9:
-						cpuStat.GNice = i
-
+						cpuStat.GNice = int16(i)
 					}
 					fieldNum++
 				}
@@ -139,8 +138,8 @@ func CPUStats() ([]CPUStat, error) {
 			ndx++
 		}
 		// the last element hasn't been saved, do it here
-		x, err := strconv.Atoi(string(tmp[:ndx]))
-		cpuStat.Idle = x
+		i, err := strconv.Atoi(string(tmp[:ndx]))
+		cpuStat.Idle = int16(i)
 		cpuStats = append(cpuStats, cpuStat)
 	}
 	return cpuStats, nil
