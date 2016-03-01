@@ -102,7 +102,6 @@ func messageWriter(c *autofac.Client, doneCh chan struct{}) {
 				return
 			}
 		case <-time.After(c.PingPeriod):
-			fmt.Println("send ping message")
 			err := c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "ping error: %s\n", err)

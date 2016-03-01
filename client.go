@@ -26,6 +26,7 @@ type Client struct {
 	PongWait   time.Duration `json:"-"`
 	WriteWait  time.Duration `json:"-"`
 	mu         sync.Mutex
+	isServer   bool
 }
 
 func NewClient(id uint32) *Client {
@@ -82,12 +83,12 @@ func (c *Client) Listen(doneCh chan struct{}) {
 
 func (c *Client) PingHandler(msg string) error {
 	fmt.Printf("ping: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PongMessage, []byte("pong"))
+	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
 }
 
 func (c *Client) PongHandler(msg string) error {
 	fmt.Printf("pong: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
+	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
 // TODO: should cpustats be enclosed in a struct for locking purposes?
@@ -105,6 +106,14 @@ func (c *Client) CPUStats() []sysinfo.CPUStat {
 	stats := make([]sysinfo.CPUStat, len(c.CPUstats))
 	copy(stats, c.CPUstats)
 	return stats
+}
+
+func (c *Client) SetIsServer(b bool) {
+	c.isServer = b
+}
+
+func (c *Client) IsServer() bool {
+	return c.isServer
 }
 
 func (c *Client) clearCPUStats() {

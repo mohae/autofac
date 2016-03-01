@@ -87,7 +87,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 listen:
 	// the client needs the current connection
 	cl.WS = c
-
+	// let the client struct know it is on the server side
+	cl.SetIsServer(true)
 	// set the ping hanlder
 	cl.WS.SetPingHandler(cl.PingHandler)
 	cl.WS.SetPingHandler(cl.PongHandler)
