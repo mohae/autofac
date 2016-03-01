@@ -36,12 +36,13 @@ func (c CPUStat) String() string {
 
 // CPUStatsTicker sends the gathered CPU stats to the outCh.  The interval is
 // the duration between ticks.  CPU info is gathered on each tick.
-func CPUStatsTicker(interval time.Duration, outCh chan []CPUStat, doneCh chan struct{}) {
-	defer close(doneCh)
+func CPUStatsTicker(interval time.Duration, outCh chan []CPUStat) {
+	defer close(outCh)
 	for {
 		select {
 		case <-time.Tick(interval):
 			stats, err := CPUStats()
+			// TODO process the error (error channel?)
 			if err != nil {
 				return
 			}

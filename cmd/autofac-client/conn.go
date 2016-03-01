@@ -57,7 +57,6 @@ func connHandler(c *autofac.Client, doneCh chan struct{}) {
 	c.WS.SetPongHandler(c.PongHandler)
 	//go messageReader(c, doneCh)
 	go c.Listen(doneCh)
-
 	go messageWriter(c, doneCh)
 
 	<-doneCh
@@ -96,7 +95,8 @@ func messageWriter(c *autofac.Client, doneCh chan struct{}) {
 				c.WS.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			err := c.WS.WriteMessage(msg.Type, msg.Data)
+			p, err := msg.JSONMarshal()
+			err = c.WS.WriteMessage(msg.Type, p)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 				return

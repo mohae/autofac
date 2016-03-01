@@ -1,7 +1,8 @@
-package autofac
+package message
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"time"
 
 	"github.com/mohae/autofac/util"
@@ -13,11 +14,14 @@ type Message struct {
 	ID [16]byte
 	// ID of the destination
 	DestID uint32
-	Type   int
-	Data   []byte
+	// Type is the websocket message type
+	Type int
+	// Kind is what kind of message this is.
+	Kind
+	Data []byte
 }
 
-func NewMessage(source uint32) Message {
+func New(source uint32) Message {
 	return Message{ID: newMessageID(source)}
 }
 
@@ -50,4 +54,14 @@ func newMessageID(source uint32) [16]byte {
 	id[15] = r[3]
 
 	return id
+}
+
+func (m *Message) JSONMarshal() ([]byte, error) {
+	return json.Marshal(m)
+}
+
+func JSONUnmarshal(p []byte) (Message, error) {
+	var m Message
+	err := json.Unmarshal(p, &m)
+	return m, err
 }

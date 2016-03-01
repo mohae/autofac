@@ -62,9 +62,13 @@ func realMain() int {
 		time.Sleep(5 * time.Second)
 		fmt.Println("unable to connect to the server: retrying...")
 	}
+	d, _ := time.ParseDuration("6s")
+	c.HealthBeatPeriod = d
+	d, _ = time.ParseDuration("30s")
+	c.PushPeriod = d
 	// start the connection handler
+	go c.HealthBeat()
 	go connHandler(c, doneCh)
-
 	// block until the done signal is set
 	<-doneCh
 
