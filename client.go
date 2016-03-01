@@ -4,24 +4,28 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/mohae/autofac/sysinfo"
 )
 
 // Client is anything that talks to the server.
 type Client struct {
-	ID         uint32   `json:"id"`
-	Datacenter string   `json:"datacenter"`
-	Groups     []string `json:"groups"`
-	Roles      []string `json:"roles"`
-	ServerURL  url.URL
-	WS         *websocket.Conn `json:"-"`
+	ID         uint32            `json:"id"`
+	Datacenter string            `json:"datacenter"`
+	Groups     []string          `json:"groups"`
+	Roles      []string          `json:"roles"`
+	ServerURL  url.URL           `json:"server_url"`
+	CPUstats   []sysinfo.CPUStat `json:"cpu_stats"`
+	WS         *websocket.Conn   `json:"-"`
 	// channel for outbound messages
 	Send       chan Message  `json:"-"`
 	PingPeriod time.Duration `json:"-"`
 	PongWait   time.Duration `json:"-"`
 	WriteWait  time.Duration `json:"-"`
+	mu         sync.Mutex
 }
 
 func NewClient(id uint32) *Client {
@@ -84,4 +88,25 @@ func (c *Client) PingHandler(msg string) error {
 func (c *Client) PongHandler(msg string) error {
 	fmt.Printf("pong: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
+}
+
+// TODO: should cpustats be enclosed in a struct for locking purposes?
+func (c *Client) AddCPUStats(stats []sysinfo.CPUStat) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.CPUstats = append(c.CPUstats, stats...)
+	return len(c.CPUstats)
+}
+
+func (c *Client) CPUStats() []sysinfo.CPUStat {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	defer c.clearCPUStats()
+	stats := make([]sysinfo.CPUStat, len(c.CPUstats))
+	copy(stats, c.CPUstats)
+	return stats
+}
+
+func (c *Client) clearCPUStats() {
+	c.CPUstats = nil
 }
