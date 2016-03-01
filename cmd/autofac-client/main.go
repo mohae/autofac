@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/mohae/autofac"
+	"github.com/mohae/autofact"
 )
 
 // flags
@@ -40,7 +40,7 @@ func realMain() int {
 	}
 
 	// get a client
-	c := autofac.NewClient(cfg.ID)
+	c := autofact.NewClient(cfg.ID)
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: *addr, Path: "/client"}
 	// doneCh is used to signal that the connection has been closed

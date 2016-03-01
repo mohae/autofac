@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/mohae/autofac"
+	"github.com/mohae/autofact"
 )
 
-func connHandler(c *autofac.Client, doneCh chan struct{}) {
+func connHandler(c *autofact.Client, doneCh chan struct{}) {
 	defer c.WS.Close()
 
 	// Send the client's ID; if it's empty or can't be found, the server will
@@ -62,7 +62,7 @@ func connHandler(c *autofac.Client, doneCh chan struct{}) {
 	<-doneCh
 }
 
-func messageReader(c *autofac.Client, doneCh chan struct{}) {
+func messageReader(c *autofact.Client, doneCh chan struct{}) {
 	defer close(doneCh)
 	for {
 		typ, p, err := c.WS.ReadMessage()
@@ -86,7 +86,7 @@ func messageReader(c *autofac.Client, doneCh chan struct{}) {
 	}
 }
 
-func messageWriter(c *autofac.Client, doneCh chan struct{}) {
+func messageWriter(c *autofact.Client, doneCh chan struct{}) {
 	defer close(doneCh)
 	for {
 		select {

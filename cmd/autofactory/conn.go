@@ -7,13 +7,13 @@ import (
 	"os"
 
 	"github.com/gorilla/websocket"
-	"github.com/mohae/autofac"
-	//"github.com/mohae/autofac/util"
+	"github.com/mohae/autofact"
+	//"github.com/mohae/autofact/util"
 )
 
 var upgrader = websocket.Upgrader{
-	ReadBufferSize:  autofac.ReadBufferSize,
-	WriteBufferSize: autofac.WriteBufferSize,
+	ReadBufferSize:  autofact.ReadBufferSize,
+	WriteBufferSize: autofact.WriteBufferSize,
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -38,7 +38,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println("*** looking up client stuff ***")
-	var cl *autofac.Client
+	var cl *autofact.Client
 	var message string
 	var ok bool
 	// decode the byte (should be len 4); if something else, reject

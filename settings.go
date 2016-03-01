@@ -1,4 +1,4 @@
-package autofac
+package autofact
 
 import "time"
 

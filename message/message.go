@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/mohae/autofac/util"
+	"github.com/mohae/autofact/util"
 )
 
 // Message is a description of a communication between end-points.

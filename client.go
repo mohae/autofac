@@ -1,6 +1,7 @@
-package autofac
+package autofact
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -9,8 +10,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/mohae/autofac/message"
-	"github.com/mohae/autofac/sysinfo"
+	"github.com/mohae/autofact/message"
+	"github.com/mohae/autofact/sysinfo"
 )
 
 // Client is anything that talks to the server.
@@ -61,6 +62,7 @@ func (c *Client) Close() error {
 
 func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
+	ackMsg := []byte("message received")
 	defer close(doneCh)
 	for {
 		fmt.Println("read message")
@@ -72,18 +74,20 @@ func (c *Client) Listen(doneCh chan struct{}) {
 		switch typ {
 		case websocket.TextMessage:
 			fmt.Printf("textmessage: %s\n", p)
+			if bytes.Equal(p, ackMsg) {
+				// if this is an acknowledgement message, do nothing
+				continue
+			}
 			err := c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing text message: %s\n", err)
 				return
 			}
 		case websocket.BinaryMessage:
-			msg, err := message.JSONUnmarshal(p)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error unmarshaling JSON into a message: %s\n", err)
 				return
 			}
-			fmt.Printf("Binarymessage: %#v\n", msg)
 			err = c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
@@ -128,16 +132,19 @@ func (c *Client) HealthBeat() {
 		return
 	}
 	cpuCh := make(chan []sysinfo.CPUStat)
-	sysinfo.CPUStatsTicker(c.HealthBeatPeriod, cpuCh)
+	go sysinfo.CPUStatsTicker(c.HealthBeatPeriod, cpuCh)
+	t := time.NewTicker(c.PushPeriod)
+	defer t.Stop()
 	for {
 		select {
 		case stats, ok := <-cpuCh:
 			if !ok {
+				fmt.Println("cpu stats chan closed")
 				goto done
 			}
 			fmt.Println("cpu stats read")
 			c.AddCPUStats(stats)
-		case <-time.Tick(c.PushPeriod):
+		case <-t.C:
 			fmt.Println("send cpu stats")
 			c.SendCPUStats()
 		}
@@ -181,10 +188,23 @@ func (c *Client) ResetCPUStats() {
 }
 
 func (c *Client) processBinaryMessage(p []byte) error {
-	// first byte of the message lets us know what kind of message this is
-	switch int(p[0]) {
-	case int(message.CPUStat):
-		fmt.Printf("cpustats: %s", string(p[1:]))
+	// unmarshal the message
+	msg, err := message.JSONUnmarshal(p)
+	if err != nil {
+		return err
+	}
+	// process according to kind
+	switch msg.Kind {
+	case message.CPUStat:
+		var stats []sysinfo.CPUStat
+		err := json.Unmarshal(msg.Data, &stats)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "cpu stats unmarshal error: %s", err)
+			return err
+		}
+		for _, stat := range stats {
+			fmt.Println(stat)
+		}
 	default:
 		fmt.Println(string(p[1:]))
 	}

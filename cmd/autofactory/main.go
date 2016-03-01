@@ -8,7 +8,7 @@ import (
 	"os"
 
 	_ "github.com/gorilla/websocket"
-	_ "github.com/mohae/autofac/util"
+	_ "github.com/mohae/autofact/util"
 )
 
 // flags
@@ -40,6 +40,6 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "unable to start server: %s\n", err)
 		return 1
 	}
-	fmt.Println("autofac: running")
+	fmt.Println("autofact: running")
 	return 0
 }

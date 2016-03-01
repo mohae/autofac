@@ -37,13 +37,17 @@ func (c CPUStat) String() string {
 // CPUStatsTicker sends the gathered CPU stats to the outCh.  The interval is
 // the duration between ticks.  CPU info is gathered on each tick.
 func CPUStatsTicker(interval time.Duration, outCh chan []CPUStat) {
+	fmt.Println(interval)
+	t := time.NewTicker(interval)
 	defer close(outCh)
+	defer t.Stop()
 	for {
 		select {
-		case <-time.Tick(interval):
+		case <-t.C:
 			stats, err := CPUStats()
 			// TODO process the error (error channel?)
 			if err != nil {
+				fmt.Fprintf(os.Stderr, "error gathering cpu stats: %s", err)
 				return
 			}
 			outCh <- stats
@@ -100,7 +104,6 @@ func CPUStats() ([]CPUStat, error) {
 					// CPUID is a string, so don't try to convert to int.
 					// convert everything else.
 					if fieldNum > 0 {
-						fmt.Println(string(tmp[:ndx]))
 						i, _ = strconv.Atoi(string(tmp[:ndx]))
 					}
 					switch fieldNum {

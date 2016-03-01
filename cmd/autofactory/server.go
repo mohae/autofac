@@ -3,7 +3,7 @@ package main
 import (
 	"time"
 
-	"github.com/mohae/autofac"
+	"github.com/mohae/autofact"
 )
 
 type server struct {
@@ -24,8 +24,8 @@ type server struct {
 func newServer(id uint32) server {
 	return server{
 		ID:           id,
-		PingInterval: autofac.PingPeriod,
-		PongWait:     autofac.PongWait,
+		PingInterval: autofact.PingPeriod,
+		PongWait:     autofact.PongWait,
 		Inventory:    newInventory(),
 	}
 }
