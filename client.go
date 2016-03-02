@@ -145,11 +145,16 @@ func (c *Client) CPUStats() []sysinfo.CPUStat {
 	return stats
 }
 
+// If the message send fails, whatever was cached will be lost.
+// TODO: should the messages to be sent be copied to a send cache so that
+// there isn't data loss on a failed send?  Consecutive PushPeriods that
+// failed to send may be problematic in that situation.
 func (c *Client) CPUStatsFB() [][]byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	stats := make([][]byte, len(c.CPUstatsFB))
 	copy(stats, c.CPUstatsFB)
+	c.CPUstatsFB = nil
 	return stats
 }
 
@@ -238,7 +243,6 @@ func (c *Client) SendCPUStatsFB() error {
 		msg.Kind = message.CPUStat
 		msg.DestID = c.ServerID
 		msg.Data = stat
-		fmt.Println(stat)
 		// send
 		c.Send <- msg
 		fmt.Fprintf(os.Stdout, "CPUStatsFB: messages %d sent\n", i+1)
@@ -262,6 +266,8 @@ func (c *Client) ResetCPUStats() {
 	c.mu.Unlock()
 }
 
+// TODO: is this obsolete now that copying the stats to the sending process
+// does this?
 func (c *Client) ResetCPUStatsFB() {
 	c.mu.Lock()
 	c.CPUstats = nil

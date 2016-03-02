@@ -44,7 +44,6 @@ func connHandler(c *autofact.Client, doneCh chan struct{}) {
 	switch typ {
 	case websocket.BinaryMessage:
 		// a binary response is a clientID
-		fmt.Printf("ID len: %d\t%X\n", len(p), p[:4])
 		c.ID = binary.LittleEndian.Uint32(p[:4])
 		fmt.Printf("new ID: %d\n", c.ID)
 	case websocket.TextMessage:
