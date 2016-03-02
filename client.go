@@ -28,9 +28,12 @@ type Client struct {
 	// If the server connection is down; nothing will be pushed and the
 	// data will continue to accumulate on the client side.
 	PushPeriod time.Duration `json:"PushPeriod"`
+	// TODO: the two versions of CPU stats are probably temporary.
 	// Current cache for accumulated CPU Stats.
 	CPUstats []sysinfo.CPUStat `json:"cpu_stats"`
-	WS       *websocket.Conn   `json:"-"`
+	// Current cache for accumulated CPU Stats using flatbuffers
+	CPUstatsFB [][]byte        `json:"cpu_stats_fb"`
+	WS         *websocket.Conn `json:"-"`
 	// channel for outbound messages
 	Send       chan message.Message `json:"-"`
 	PingPeriod time.Duration        `json:"-"`
@@ -119,11 +122,34 @@ func (c *Client) AddCPUStats(stats []sysinfo.CPUStat) int {
 	return len(c.CPUstats)
 }
 
+func (c *Client) AddCPUStatsFB(stats []byte) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.CPUstatsFB = append(c.CPUstatsFB, stats)
+	return len(c.CPUstats)
+}
+
+// TODO: the current stats get copied for send; should the stat slice
+// get reset now?  There is possible data loss this way; but there's
+// possible data loss if the stat slice gets appended to between this
+// copy op and the send completing, unless a lock is held the entire time,
+// which could block the stats reading process leading to data loss due to
+// missed reads.  I'm thinking COW or delete now; but punting becasue it
+// really doesn't matter as this is just an experiment, right now.
+// This also applies to CPUStatsFB
 func (c *Client) CPUStats() []sysinfo.CPUStat {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	stats := make([]sysinfo.CPUStat, len(c.CPUstats))
 	copy(stats, c.CPUstats)
+	return stats
+}
+
+func (c *Client) CPUStatsFB() [][]byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	stats := make([][]byte, len(c.CPUstatsFB))
+	copy(stats, c.CPUstatsFB)
 	return stats
 }
 
@@ -150,7 +176,35 @@ func (c *Client) HealthBeat() {
 		}
 	}
 done:
+	// Flush the buffer.
 	c.SendCPUStats()
+}
+
+func (c *Client) HealthBeatFB() {
+	fmt.Println("started HealthBeatFB")
+	if c.HealthBeatPeriod == 0 {
+		return
+	}
+	cpuCh := make(chan []byte)
+	go sysinfo.CPUStatsFBTicker(c.HealthBeatPeriod, cpuCh)
+	t := time.NewTicker(c.PushPeriod)
+	defer t.Stop()
+	for {
+		select {
+		case stats, ok := <-cpuCh:
+			if !ok {
+				fmt.Println("fb: cpu stats chan closed")
+				goto done
+			}
+			c.AddCPUStatsFB(stats)
+		case <-t.C:
+			fmt.Println("fb: time to send the cpu stats")
+			c.SendCPUStatsFB()
+		}
+	}
+done:
+	// Flush the buffer.
+	c.SendCPUStatsFB()
 }
 
 func (c *Client) SendCPUStats() error {
@@ -173,6 +227,27 @@ func (c *Client) SendCPUStats() error {
 	return nil
 }
 
+func (c *Client) SendCPUStatsFB() error {
+	// Get a copy of the stats
+	stats := c.CPUStatsFB()
+	fmt.Printf("cpustatsfb: %d messages to send\n", len(stats))
+	// for each stat, send a message
+	for i, stat := range stats {
+		msg := message.New(c.ID)
+		msg.Type = websocket.BinaryMessage
+		msg.Kind = message.CPUStat
+		msg.DestID = c.ServerID
+		msg.Data = stat
+		fmt.Println(stat)
+		// send
+		c.Send <- msg
+		fmt.Fprintf(os.Stdout, "CPUStatsFB: messages %d sent\n", i+1)
+	}
+	// TODO: only reset the stats if the send was received by the server
+	c.ResetCPUStatsFB()
+	return nil
+}
+
 func (c *Client) SetIsServer(b bool) {
 	c.isServer = b
 }
@@ -187,6 +262,12 @@ func (c *Client) ResetCPUStats() {
 	c.mu.Unlock()
 }
 
+func (c *Client) ResetCPUStatsFB() {
+	c.mu.Lock()
+	c.CPUstats = nil
+	c.mu.Unlock()
+}
+
 func (c *Client) processBinaryMessage(p []byte) error {
 	// unmarshal the message
 	msg, err := message.JSONUnmarshal(p)
@@ -196,15 +277,17 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	// process according to kind
 	switch msg.Kind {
 	case message.CPUStat:
-		var stats []sysinfo.CPUStat
-		err := json.Unmarshal(msg.Data, &stats)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "cpu stats unmarshal error: %s", err)
-			return err
-		}
-		for _, stat := range stats {
-			fmt.Println(stat)
-		}
+		//		var stats []sysinfo.CPUStat
+		//		err := json.Unmarshal(msg.Data, &stats)
+		//		if err != nil {
+		//			fmt.Fprintf(os.Stderr, "cpu stats unmarshal error: %s", err)
+		//			return err
+		//		}
+		//		for _, stat := range stats {
+		//			fmt.Println(stat)
+		//		}
+		s := sysinfo.UnmarshalCPUStatsFBToString(msg.Data)
+		fmt.Println(s)
 	default:
 		fmt.Println(string(p[1:]))
 	}

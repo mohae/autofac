@@ -66,8 +66,13 @@ func realMain() int {
 	c.HealthBeatPeriod = d
 	d, _ = time.ParseDuration("30s")
 	c.PushPeriod = d
+
+	// start the stats gatherer.
+	// TODO: start before trying to connect to server; need to add a connected
+	// flag to the client so that it doesn't try to send the stats while
+	// trying to connect to the server or while the connection is down.
+	go c.HealthBeatFB()
 	// start the connection handler
-	go c.HealthBeat()
 	go connHandler(c, doneCh)
 	// block until the done signal is set
 	<-doneCh

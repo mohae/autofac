@@ -1,0 +1,19 @@
+// cpustatfb.fbs
+namespace sysinfo;
+
+table CPUStatFB {
+    Timestamp:string;
+    CPUID:string;
+    Usr:short;
+    Nice:short;
+    Sys:short;
+    IOWait:short;
+    IRQ:short;
+    Soft:short;
+    Steal:short;
+    Guest:short;
+    GNice:short;
+    Idle:short;
+}
+
+root_type CPUStatFB;
