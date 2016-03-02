@@ -1,6 +1,6 @@
 # autofact
-> the product is thoroughly pizzled.
+> Write: _the product is thoroughly pizzled._
 >
->  - Philip K. Dick, _Autofac_
+>   -Philip K. Dick,  _Autofac_
 
 This is an experiment to get an understanding of some things.
