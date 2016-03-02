@@ -274,13 +274,12 @@ func CPUStatsFBTicker(interval time.Duration, outCh chan []byte) {
 				// the last element hasn't been saved, do it here
 				i, _ = strconv.Atoi(string(fld[:ndx]))
 				CPUStatFBAddIdle(builder, int16(i))
+				builder.Finish(CPUStatFBEnd(builder))
 				// send the bytes
 				tmp := builder.Bytes[builder.Head():]
-				fmt.Println(tmp)
 				// copy the Bytes
 				cpy := make([]byte, len(tmp))
 				copy(cpy, tmp)
-				fmt.Println(cpy)
 				outCh <- cpy
 				// reset the builder
 				builder.Reset()
@@ -295,10 +294,6 @@ func CPUStatsFBTicker(interval time.Duration, outCh chan []byte) {
 }
 
 func UnmarshalCPUStatsFBToString(p []byte) string {
-	fmt.Println(len(p))
-	fmt.Println(p)
 	c := GetRootAsCPUStatFB(p, 0)
-	fmt.Println(c.Timestamp())
-	fmt.Println(c.CPUID())
 	return fmt.Sprintf("%s\t%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\n", string(c.Timestamp()), string(c.CPUID()), float32(c.Usr())/100.0, float32(c.Nice())/100.0, float32(c.Sys())/100.0, float32(c.IOWait())/100.0, float32(c.IRQ())/100.0, float32(c.Soft())/100.0, float32(c.Steal())/100.0, float32(c.Guest())/100.0, float32(c.GNice())/100.0, float32(c.Idle())/100.0)
 }
