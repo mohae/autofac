@@ -16,7 +16,7 @@ var (
 	addr = flag.String("addr", "127.0.0.1:8675", "")
 )
 
-var fac server
+var srvr server
 
 func main() {
 	os.Exit(realMain())
@@ -33,7 +33,7 @@ func realMain() int {
 	b[3] = 1
 	v := binary.LittleEndian.Uint32(b)
 	fmt.Println(v)
-	fac = newServer(v)
+	srvr = newServer(v)
 	http.HandleFunc("/client", serveClient)
 	err := http.ListenAndServe(fmt.Sprintf("%s", *addr), nil)
 	if err != nil {

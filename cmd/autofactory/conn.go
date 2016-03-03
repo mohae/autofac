@@ -51,7 +51,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	if id == 0 {
 		fmt.Println("*** new client ***")
 		// get a new client and its ID
-		cl = fac.Inventory.NewClient()
+		cl = srvr.Inventory.NewClient()
 		fmt.Printf("new ID: %d\n", cl.ID)
 		id := make([]byte, 4)
 		binary.LittleEndian.PutUint32(id, cl.ID)
@@ -62,11 +62,10 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		goto listen
 	}
 
-	fmt.Println("*** existing client ***")
 	message = fmt.Sprintf("welcome back %X\n", id)
-	cl, ok = fac.Inventory.Client(id)
+	cl, ok = srvr.Inventory.Client(id)
 	if !ok {
-		cl = fac.Inventory.NewClient()
+		cl = srvr.Inventory.NewClient()
 		// send the new client ID
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, cl.ID)
@@ -75,10 +74,10 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", cl.ID, err)
 			return
 		}
-		message = fmt.Sprintf("welcome back; could not fine %X in inventory, new id: %X\n", b, cl.ID)
+		message = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", b, cl.ID)
 	}
 	// send the welcome message
-	err = cl.WS.WriteMessage(websocket.TextMessage, []byte(message))
+	err = c.WriteMessage(websocket.TextMessage, []byte(message))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error writing welcome message for %X: %s\n", cl.ID, err)
 		return

@@ -16,7 +16,6 @@ var (
 	reconnectPeriod = flag.String("reconnectperiod", "5m", "the amount of time to try and reconnect before quiting")
 )
 
-var reconnectDuration time.Duration
 var cfg Cfg
 
 // Cfg holds the client cfg
@@ -33,7 +32,7 @@ func main() {
 func realMain() int {
 	flag.Parse()
 	var err error
-	reconnectDuration, err = time.ParseDuration(*reconnectPeriod)
+	reconnectPeriod, err := time.ParseDuration(*reconnectPeriod)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "parse of reconnect period failed: %s\n", err)
 		return 1
@@ -43,39 +42,28 @@ func realMain() int {
 	c := autofact.NewClient(cfg.ID)
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: *addr, Path: "/client"}
+	c.ReconnectPeriod = reconnectPeriod
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
-
-	start := time.Now()
-	retryEnd := start.Add(reconnectDuration)
-	// connect to server; retry until the retry period has expired
-	for {
-		if time.Now().After(retryEnd) {
-			fmt.Fprintln(os.Stderr, "timed out while trying to connect to the server")
-			close(doneCh)
-			return 1
-		}
-		err = c.DialServer()
-		if err == nil {
-			break
-		}
-		time.Sleep(5 * time.Second)
-		fmt.Println("unable to connect to the server: retrying...")
-	}
 	d, _ := time.ParseDuration("6s")
 	c.HealthBeatPeriod = d
 	d, _ = time.ParseDuration("30s")
 	c.PushPeriod = d
-
-	// start the stats gatherer.
-	// TODO: start before trying to connect to server; need to add a connected
-	// flag to the client so that it doesn't try to send the stats while
-	// trying to connect to the server or while the connection is down.
+	// must have a connection before doing anything
+	for i := 0; i < 3; i++ {
+		connected := c.Connect()
+		if connected {
+			break
+		}
+		// retry on fail until retry attempts have been exceeded
+	}
+	// start the healthbeat monitoring
 	go c.HealthBeatFB()
+	c.WS.SetPongHandler(c.PongHandler)
+	c.WS.SetPingHandler(c.PingHandler)
 	// start the connection handler
-	go connHandler(c, doneCh)
-	// block until the done signal is set
+	go c.Listen(doneCh)
+	go c.MessageWriter(doneCh)
 	<-doneCh
-
 	return 0
 }

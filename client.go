@@ -2,6 +2,7 @@ package autofact
 
 import (
 	"bytes"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -32,15 +33,18 @@ type Client struct {
 	// Current cache for accumulated CPU Stats.
 	CPUstats []sysinfo.CPUStat `json:"cpu_stats"`
 	// Current cache for accumulated CPU Stats using flatbuffers
-	CPUstatsFB [][]byte        `json:"cpu_stats_fb"`
-	WS         *websocket.Conn `json:"-"`
+	CPUstatsFB      [][]byte      `json:"cpu_stats_fb"`
+	ReconnectPeriod time.Duration `json:"reconnect_period"`
+
+	WS *websocket.Conn `json:"-"`
 	// channel for outbound messages
-	Send       chan message.Message `json:"-"`
-	PingPeriod time.Duration        `json:"-"`
-	PongWait   time.Duration        `json:"-"`
-	WriteWait  time.Duration        `json:"-"`
-	mu         sync.Mutex
-	isServer   bool
+	Send        chan message.Message `json:"-"`
+	PingPeriod  time.Duration        `json:"-"`
+	PongWait    time.Duration        `json:"-"`
+	WriteWait   time.Duration        `json:"-"`
+	mu          sync.Mutex
+	isServer    bool
+	isConnected bool
 }
 
 func NewClient(id uint32) *Client {
@@ -53,25 +57,140 @@ func NewClient(id uint32) *Client {
 	}
 }
 
+// Connect handles connecting to the server and returns the connection status.
+// The client will attempt to connect until it has either succeeded or the
+// connection retry period has been exceeded.  A retry is done every 5 seconds.
+//
+// If the client is already connected, nothing will be done.
+func (c *Client) Connect() bool {
+	// If already connected, return that fact.
+	c.mu.Lock()
+	if c.isConnected {
+		c.mu.Unlock()
+		return true
+	}
+	c.mu.Unlock()
+	start := time.Now()
+	retryEnd := start.Add(c.ReconnectPeriod)
+	// connect to server; retry until the retry period has expired
+	for {
+		if time.Now().After(retryEnd) {
+			fmt.Fprintln(os.Stderr, "timed out while trying to connect to the server")
+			return false
+		}
+		err := c.DialServer()
+		if err == nil {
+			break
+		}
+		time.Sleep(5 * time.Second)
+		fmt.Println("unable to connect to the server: retrying...")
+	}
+	// Send the client's ID; if it's empty or can't be found, the server will
+	// respond with one.  Retry until the server responds, or until the
+	// reconnectPeriod has expired.
+	var err error
+	var typ int
+	var p []byte
+	b := make([]byte, 4)
+	if c.ID > 0 {
+		binary.LittleEndian.PutUint32(b, c.ID)
+	}
+	err = c.WS.WriteMessage(websocket.BinaryMessage, b)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
+		c.WS.Close()
+		return false
+	}
+
+	typ, p, err = c.WS.ReadMessage()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
+		c.WS.Close()
+		return false
+	}
+
+	fmt.Printf("hello response: %d: %v\n", typ, p)
+	switch typ {
+	case websocket.BinaryMessage:
+		// a binary response is a clientID
+		c.ID = binary.LittleEndian.Uint32(p[:4])
+		fmt.Printf("new ID: %d\n", c.ID)
+	case websocket.TextMessage:
+		fmt.Printf("%s\n", string(p))
+	default:
+		fmt.Printf("unexpected welcome response type %d: %v\n", typ, p)
+		c.WS.Close()
+		return false
+	}
+	c.mu.Lock()
+	c.isConnected = true
+	c.mu.Unlock()
+	fmt.Println("return is connected == true")
+	return true
+}
+
 func (c *Client) DialServer() error {
 	var err error
 	c.WS, _, err = websocket.DefaultDialer.Dial(c.ServerURL.String(), nil)
 	return err
 }
 
-func (c *Client) Close() error {
-	return c.WS.Close()
+func (c *Client) MessageWriter(doneCh chan struct{}) {
+	defer close(doneCh)
+	for {
+		select {
+		case msg, ok := <-c.Send:
+			if !ok {
+				c.WS.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+			p, err := msg.JSONMarshal()
+			err = c.WS.WriteMessage(msg.Type, p)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
+			}
+		case <-time.After(c.PingPeriod):
+			err := c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "ping error: %s\n", err)
+			}
+		}
+	}
+}
+
+func (c *Client) Reconnect() bool {
+	c.mu.Lock()
+	c.isConnected = false
+	c.mu.Unlock()
+	for i := 0; i < 10; i++ {
+		b := c.Connect()
+		if b {
+			fmt.Println("reconnect true")
+			return b
+		}
+	}
+	return false
 }
 
 func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
 	ackMsg := []byte("message received")
 	defer close(doneCh)
+
 	for {
 		fmt.Println("read message")
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
+			if _, ok := err.(*websocket.CloseError); !ok {
+				return
+			}
+			fmt.Println("reconnecting from read messages")
+			connected := c.Reconnect()
+			if connected {
+				continue
+			}
+			fmt.Fprint(os.Stderr, "unable to reconnect to server")
 			return
 		}
 		switch typ {
@@ -83,7 +202,15 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			}
 			err := c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing text message: %s\n", err)
+				if _, ok := err.(*websocket.CloseError); !ok {
+					return
+				}
+				fmt.Println("reconnect from writing message: textmessage")
+				connected := c.Reconnect()
+				if connected {
+					continue
+				}
+				fmt.Fprint(os.Stderr, "unable to reconnect to server")
 				return
 			}
 		case websocket.BinaryMessage:
@@ -94,11 +221,26 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			err = c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
+				if _, ok := err.(*websocket.CloseError); !ok {
+					return
+				}
+				fmt.Println("reconnect from writing message: binarymessage")
+				connected := c.Reconnect()
+				if connected {
+					continue
+				}
+				fmt.Fprint(os.Stderr, "unable to reconnect to server")
 				return
 			}
 			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
 			fmt.Printf("closemessage: %x\n", p)
+			fmt.Println("reconnect from writing message: closemessage")
+			connected := c.Reconnect()
+			if connected {
+				continue
+			}
+			fmt.Fprint(os.Stderr, "unable to reconnect to server")
 			return
 		}
 	}
