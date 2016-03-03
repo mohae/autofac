@@ -2,35 +2,17 @@ package message
 
 import (
 	"encoding/binary"
-	"encoding/json"
 	"time"
 
 	"github.com/mohae/autofact/util"
 )
 
-// Message is a description of a communication between end-points.
-type Message struct {
-	// ID of the message
-	ID [16]byte
-	// ID of the destination
-	DestID uint32
-	// Type is the websocket message type
-	Type int
-	// Kind is what kind of message this is.
-	Kind
-	Data []byte
-}
-
-func New(source uint32) Message {
-	return Message{ID: newMessageID(source)}
-}
-
 // a message id consists of:
 // timestamp: int64
 // sourceID:  uint32
 // randomBits: uint32
-func newMessageID(source uint32) [16]byte {
-	var id [16]byte
+func newMessageID(source uint32) []byte {
+	id := make([]byte, 16)
 	sid := make([]byte, 4)
 	r := make([]byte, 4)
 	tb := util.Int64ToByteSlice(time.Now().UnixNano())
@@ -52,16 +34,5 @@ func newMessageID(source uint32) [16]byte {
 	id[13] = r[1]
 	id[14] = r[2]
 	id[15] = r[3]
-
 	return id
-}
-
-func (m *Message) JSONMarshal() ([]byte, error) {
-	return json.Marshal(m)
-}
-
-func JSONUnmarshal(p []byte) (Message, error) {
-	var m Message
-	err := json.Unmarshal(p, &m)
-	return m, err
 }

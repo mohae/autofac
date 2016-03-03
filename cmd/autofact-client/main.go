@@ -58,7 +58,7 @@ func realMain() int {
 		// retry on fail until retry attempts have been exceeded
 	}
 	// start the healthbeat monitoring
-	go c.HealthBeatFB()
+	go c.HealthBeat()
 	c.WS.SetPongHandler(c.PongHandler)
 	c.WS.SetPingHandler(c.PingHandler)
 	// start the connection handler

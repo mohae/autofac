@@ -3,7 +3,6 @@ package autofact
 import (
 	"bytes"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
@@ -29,19 +28,18 @@ type Client struct {
 	// If the server connection is down; nothing will be pushed and the
 	// data will continue to accumulate on the client side.
 	PushPeriod time.Duration `json:"PushPeriod"`
-	// TODO: the two versions of CPU stats are probably temporary.
-	// Current cache for accumulated CPU Stats.
-	CPUstats []sysinfo.CPUStat `json:"cpu_stats"`
 	// Current cache for accumulated CPU Stats using flatbuffers
-	CPUstatsFB      [][]byte      `json:"cpu_stats_fb"`
+	CPUstats        [][]byte      `json:"cpu_stats_fb"`
 	ReconnectPeriod time.Duration `json:"reconnect_period"`
 
 	WS *websocket.Conn `json:"-"`
-	// channel for outbound messages
-	Send        chan message.Message `json:"-"`
-	PingPeriod  time.Duration        `json:"-"`
-	PongWait    time.Duration        `json:"-"`
-	WriteWait   time.Duration        `json:"-"`
+	// Channel for outbound binary messages.  The message is assumed to be a
+	// websocket.Binary type
+	SendB       chan []byte   `json:"-"`
+	SendStr     chan string   `json:"-"`
+	PingPeriod  time.Duration `json:"-"`
+	PongWait    time.Duration `json:"-"`
+	WriteWait   time.Duration `json:"-"`
 	mu          sync.Mutex
 	isServer    bool
 	isConnected bool
@@ -53,7 +51,11 @@ func NewClient(id uint32) *Client {
 		PingPeriod: PingPeriod,
 		PongWait:   PongWait,
 		WriteWait:  WriteWait,
-		Send:       make(chan message.Message, 10),
+		// A really small buffer:
+		// TODO: rethink this vis-a-vis what happens when recipient isn't there
+		// or if it goes away during sending and possibly caching items to be sent.
+		SendB:   make(chan []byte, 10),
+		SendStr: make(chan string, 10),
 	}
 }
 
@@ -141,7 +143,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 	defer close(doneCh)
 	for {
 		select {
-		case msg, ok := <-c.Send:
+		case p, ok := <-c.SendB:
 			// don't send if not connected
 			if !c.IsConnected() {
 				continue
@@ -150,8 +152,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 				c.WS.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
-			p, err := msg.JSONMarshal()
-			err = c.WS.WriteMessage(msg.Type, p)
+			err := c.WS.WriteMessage(websocket.BinaryMessage, p)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 			}
@@ -282,20 +283,14 @@ func (c *Client) PongHandler(msg string) error {
 }
 
 // TODO: should cpustats be enclosed in a struct for locking purposes?
-func (c *Client) AddCPUStats(stats []sysinfo.CPUStat) int {
+func (c *Client) AddCPUStats(stats []byte) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.CPUstats = append(c.CPUstats, stats...)
+	c.CPUstats = append(c.CPUstats, stats)
 	return len(c.CPUstats)
 }
 
-func (c *Client) AddCPUStatsFB(stats []byte) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.CPUstatsFB = append(c.CPUstatsFB, stats)
-	return len(c.CPUstats)
-}
-
+// If the message send fails, whatever was cached will be lost.
 // TODO: the current stats get copied for send; should the stat slice
 // get reset now?  There is possible data loss this way; but there's
 // possible data loss if the stat slice gets appended to between this
@@ -304,32 +299,24 @@ func (c *Client) AddCPUStatsFB(stats []byte) int {
 // missed reads.  I'm thinking COW or delete now; but punting becasue it
 // really doesn't matter as this is just an experiment, right now.
 // This also applies to CPUStatsFB
-func (c *Client) CPUStats() []sysinfo.CPUStat {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	stats := make([]sysinfo.CPUStat, len(c.CPUstats))
-	copy(stats, c.CPUstats)
-	return stats
-}
-
-// If the message send fails, whatever was cached will be lost.
 // TODO: should the messages to be sent be copied to a send cache so that
 // there isn't data loss on a failed send?  Consecutive PushPeriods that
 // failed to send may be problematic in that situation.
-func (c *Client) CPUStatsFB() [][]byte {
+func (c *Client) CPUStats() [][]byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	stats := make([][]byte, len(c.CPUstatsFB))
-	copy(stats, c.CPUstatsFB)
-	c.CPUstatsFB = nil
+	stats := make([][]byte, len(c.CPUstats))
+	copy(stats, c.CPUstats)
+	c.CPUstats = nil
 	return stats
 }
 
 func (c *Client) HealthBeat() {
+	fmt.Println("started HealthBeat")
 	if c.HealthBeatPeriod == 0 {
 		return
 	}
-	cpuCh := make(chan []sysinfo.CPUStat)
+	cpuCh := make(chan []byte)
 	go sysinfo.CPUStatsTicker(c.HealthBeatPeriod, cpuCh)
 	t := time.NewTicker(c.PushPeriod)
 	defer t.Stop()
@@ -340,15 +327,12 @@ func (c *Client) HealthBeat() {
 				fmt.Println("cpu stats chan closed")
 				goto done
 			}
-			fmt.Println("cpu stats read")
 			c.AddCPUStats(stats)
 		case <-t.C:
-			// don't send if not connected
-			fmt.Printf("healthbeat send ticker. connected == %t\n", c.IsConnected())
 			if !c.IsConnected() {
 				continue
 			}
-			fmt.Println("send cpu stats")
+			fmt.Println("time to send the cpu stats")
 			c.SendCPUStats()
 		}
 	}
@@ -357,113 +341,41 @@ done:
 	c.SendCPUStats()
 }
 
-func (c *Client) HealthBeatFB() {
-	fmt.Println("started HealthBeatFB")
-	if c.HealthBeatPeriod == 0 {
-		return
-	}
-	cpuCh := make(chan []byte)
-	go sysinfo.CPUStatsFBTicker(c.HealthBeatPeriod, cpuCh)
-	t := time.NewTicker(c.PushPeriod)
-	defer t.Stop()
-	for {
-		select {
-		case stats, ok := <-cpuCh:
-			if !ok {
-				fmt.Println("fb: cpu stats chan closed")
-				goto done
-			}
-			c.AddCPUStatsFB(stats)
-		case <-t.C:
-			if !c.IsConnected() {
-				continue
-			}
-			fmt.Println("fb: time to send the cpu stats")
-			c.SendCPUStatsFB()
-		}
-	}
-done:
-	// Flush the buffer.
-	c.SendCPUStatsFB()
-}
-
+// SendCPUStatsFB sends the cached cpu stats to the server.  The caller
+// checks to see if the client is connected to the server before calling.
+// If the connection is lost during processing, the cached stats will be lost.
+// TODO:  should this be more resilient?
 func (c *Client) SendCPUStats() error {
-	// convert the stats to bytes
+	// Get a copy of the stats
 	stats := c.CPUStats()
-	b, err := json.Marshal(stats)
-	if err != nil {
-		return err
+	fmt.Printf("cpustats: %d messages to send\n", len(stats))
+	// for each stat, send a message
+	for i, stat := range stats {
+		c.SendB <- stat
+		fmt.Fprintf(os.Stdout, "CPUStats: messages %d sent\n", i+1)
 	}
-	// create the message
-	msg := message.New(c.ID)
-	msg.Type = websocket.BinaryMessage
-	msg.Kind = message.CPUStat
-	msg.DestID = c.ServerID
-	msg.Data = b
-	// send
-	c.Send <- msg
 	// TODO: only reset the stats if the send was received by the server
 	c.ResetCPUStats()
 	return nil
 }
 
-// SendCPUStatsFB sends the cached cpu stats to the server.  The caller
-// checks to see if the client is connected to the server before calling.
-// If the connection is lost during processing, the cached stats will be lost.
-// TODO:  should this be more resilient?
-func (c *Client) SendCPUStatsFB() error {
-	// Get a copy of the stats
-	stats := c.CPUStatsFB()
-	fmt.Printf("cpustatsfb: %d messages to send\n", len(stats))
-	// for each stat, send a message
-	for i, stat := range stats {
-		msg := message.New(c.ID)
-		msg.Type = websocket.BinaryMessage
-		msg.Kind = message.CPUStat
-		msg.DestID = c.ServerID
-		msg.Data = stat
-		// send
-		c.Send <- msg
-		fmt.Fprintf(os.Stdout, "CPUStatsFB: messages %d sent\n", i+1)
-	}
-	// TODO: only reset the stats if the send was received by the server
-	c.ResetCPUStatsFB()
-	return nil
-}
-
+// TODO: is this obsolete now that copying the stats to the sending process
+// does this?
 func (c *Client) ResetCPUStats() {
 	c.mu.Lock()
 	c.CPUstats = nil
 	c.mu.Unlock()
 }
 
-// TODO: is this obsolete now that copying the stats to the sending process
-// does this?
-func (c *Client) ResetCPUStatsFB() {
-	c.mu.Lock()
-	c.CPUstats = nil
-	c.mu.Unlock()
-}
-
+// binary messages are expected to be flatbuffer encoding of message.Message.
 func (c *Client) processBinaryMessage(p []byte) error {
 	// unmarshal the message
-	msg, err := message.JSONUnmarshal(p)
-	if err != nil {
-		return err
-	}
+	msg := message.GetRootAsMessage(p, 0)
 	// process according to kind
-	switch msg.Kind {
+	k := message.Kind(msg.Kind())
+	switch k {
 	case message.CPUStat:
-		//		var stats []sysinfo.CPUStat
-		//		err := json.Unmarshal(msg.Data, &stats)
-		//		if err != nil {
-		//			fmt.Fprintf(os.Stderr, "cpu stats unmarshal error: %s", err)
-		//			return err
-		//		}
-		//		for _, stat := range stats {
-		//			fmt.Println(stat)
-		//		}
-		s := sysinfo.UnmarshalCPUStatsFBToString(msg.Data)
+		s := sysinfo.UnmarshalCPUStatsToString(msg.DataBytes())
 		fmt.Println(s)
 	default:
 		fmt.Println(string(p[1:]))
