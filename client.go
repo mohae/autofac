@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
@@ -349,10 +350,20 @@ func (c *Client) SendCPUStats() error {
 	// Get a copy of the stats
 	stats := c.CPUStats()
 	fmt.Printf("cpustats: %d messages to send\n", len(stats))
+	bldr := flatbuffers.NewBuilder(0)
 	// for each stat, send a message
 	for i, stat := range stats {
-		c.SendB <- stat
+		id := bldr.CreateByteVector(message.NewMessageID(c.ID))
+		data := bldr.CreateByteVector(stat)
+		message.MessageStart(bldr)
+		message.MessageAddID(bldr, id)
+		message.MessageAddType(bldr, websocket.BinaryMessage)
+		message.MessageAddKind(bldr, int16(message.CPUStat))
+		message.MessageAddData(bldr, data)
+		bldr.Finish(message.MessageEnd(bldr))
+		c.SendB <- bldr.Bytes[bldr.Head():]
 		fmt.Fprintf(os.Stdout, "CPUStats: messages %d sent\n", i+1)
+		bldr.Reset()
 	}
 	// TODO: only reset the stats if the send was received by the server
 	c.ResetCPUStats()
@@ -378,7 +389,8 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		s := sysinfo.UnmarshalCPUStatsToString(msg.DataBytes())
 		fmt.Println(s)
 	default:
-		fmt.Println(string(p[1:]))
+		fmt.Println("unknown message kind")
+		fmt.Println(string(p))
 	}
 	return nil
 }

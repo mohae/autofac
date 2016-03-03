@@ -11,7 +11,7 @@ import (
 // timestamp: int64
 // sourceID:  uint32
 // randomBits: uint32
-func newMessageID(source uint32) []byte {
+func NewMessageID(source uint32) []byte {
 	id := make([]byte, 16)
 	sid := make([]byte, 4)
 	r := make([]byte, 4)
