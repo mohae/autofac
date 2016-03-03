@@ -64,12 +64,9 @@ func NewClient(id uint32) *Client {
 // If the client is already connected, nothing will be done.
 func (c *Client) Connect() bool {
 	// If already connected, return that fact.
-	c.mu.Lock()
-	if c.isConnected {
-		c.mu.Unlock()
+	if c.IsConnected() {
 		return true
 	}
-	c.mu.Unlock()
 	start := time.Now()
 	retryEnd := start.Add(c.ReconnectPeriod)
 	// connect to server; retry until the retry period has expired
@@ -140,6 +137,10 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 	for {
 		select {
 		case msg, ok := <-c.Send:
+			// don't send if not connected
+			if !c.IsConnected() {
+				continue
+			}
 			if !ok {
 				c.WS.WriteMessage(websocket.CloseMessage, []byte{})
 				return
@@ -150,6 +151,10 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 			}
 		case <-time.After(c.PingPeriod):
+			// only ping if we are connected
+			if !c.IsConnected() {
+				continue
+			}
 			err := c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "ping error: %s\n", err)
@@ -246,6 +251,21 @@ func (c *Client) Listen(doneCh chan struct{}) {
 	}
 }
 
+func (c *Client) SetIsServer(b bool) {
+	c.isServer = b
+}
+
+func (c *Client) IsServer() bool {
+	return c.isServer
+}
+
+// IsConnected returns if the client is connected.
+func (c *Client) IsConnected() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.isConnected
+}
+
 func (c *Client) PingHandler(msg string) error {
 	fmt.Printf("ping: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
@@ -318,6 +338,11 @@ func (c *Client) HealthBeat() {
 			fmt.Println("cpu stats read")
 			c.AddCPUStats(stats)
 		case <-t.C:
+			// don't send if not connected
+			fmt.Printf("healthbeat send ticker. connected == %t\n", c.IsConnected())
+			if !c.IsConnected() {
+				continue
+			}
 			fmt.Println("send cpu stats")
 			c.SendCPUStats()
 		}
@@ -345,6 +370,9 @@ func (c *Client) HealthBeatFB() {
 			}
 			c.AddCPUStatsFB(stats)
 		case <-t.C:
+			if !c.IsConnected() {
+				continue
+			}
 			fmt.Println("fb: time to send the cpu stats")
 			c.SendCPUStatsFB()
 		}
@@ -374,6 +402,10 @@ func (c *Client) SendCPUStats() error {
 	return nil
 }
 
+// SendCPUStatsFB sends the cached cpu stats to the server.  The caller
+// checks to see if the client is connected to the server before calling.
+// If the connection is lost during processing, the cached stats will be lost.
+// TODO:  should this be more resilient?
 func (c *Client) SendCPUStatsFB() error {
 	// Get a copy of the stats
 	stats := c.CPUStatsFB()
@@ -392,14 +424,6 @@ func (c *Client) SendCPUStatsFB() error {
 	// TODO: only reset the stats if the send was received by the server
 	c.ResetCPUStatsFB()
 	return nil
-}
-
-func (c *Client) SetIsServer(b bool) {
-	c.isServer = b
-}
-
-func (c *Client) IsServer() bool {
-	return c.isServer
 }
 
 func (c *Client) ResetCPUStats() {
