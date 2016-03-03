@@ -67,6 +67,11 @@ func (c *Client) Connect() bool {
 	if c.IsConnected() {
 		return true
 	}
+	// if this is the server, don't try to reconnect-that's the client's responsibility
+	// TODO: is this the place to note client dc time for notification purposes?
+	if c.isServer {
+		return false
+	}
 	start := time.Now()
 	retryEnd := start.Add(c.ReconnectPeriod)
 	// connect to server; retry until the retry period has expired
