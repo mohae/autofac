@@ -266,7 +266,6 @@ func CPUStatsTicker(interval time.Duration, outCh chan []byte) {
 				ndx, fldNum = 0, 0
 			}
 			// reset the output buffer
-			fmt.Println("fb cpu stats gathered")
 			out.Reset()
 			line = 0
 		}

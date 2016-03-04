@@ -97,7 +97,6 @@ func (c *Client) Connect() bool {
 		return false
 	}
 
-	fmt.Printf("hello response: %d: %v\n", typ, p)
 	switch typ {
 	case websocket.BinaryMessage:
 		// a binary response is a clientID
@@ -113,7 +112,6 @@ func (c *Client) Connect() bool {
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
-	fmt.Println("return is connected == true")
 	return true
 }
 
@@ -169,11 +167,9 @@ func (c *Client) Reconnect() bool {
 
 func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
-	ackMsg := []byte("message received")
+	ackMsg := []byte("ok")
 	defer close(doneCh)
-
 	for {
-		fmt.Println("read message")
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
@@ -195,7 +191,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				// if this is an acknowledgement message, do nothing
 				continue
 			}
-			err := c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
+			err := c.WS.WriteMessage(websocket.TextMessage, ackMsg)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); !ok {
 					return
@@ -209,11 +205,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				return
 			}
 		case websocket.BinaryMessage:
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error unmarshaling JSON into a message: %s\n", err)
-				return
-			}
-			err = c.WS.WriteMessage(websocket.TextMessage, []byte("message received"))
+			err = c.WS.WriteMessage(websocket.TextMessage, ackMsg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
 				if _, ok := err.(*websocket.CloseError); !ok {
@@ -296,7 +288,6 @@ func (c *Client) CPUStats() [][]byte {
 }
 
 func (c *Client) Healthbeat() {
-	fmt.Println("started Healthbeat")
 	// An interval of 0 means no healthbeat
 	if c.Cfg.HealthbeatInterval == 0 {
 		return
@@ -317,7 +308,6 @@ func (c *Client) Healthbeat() {
 			if !c.IsConnected() {
 				continue
 			}
-			fmt.Println("time to send the cpu stats")
 			c.SendCPUStats()
 		}
 	}
@@ -333,10 +323,9 @@ done:
 func (c *Client) SendCPUStats() error {
 	// Get a copy of the stats
 	stats := c.CPUStats()
-	fmt.Printf("cpustats: %d messages to send\n", len(stats))
-	bldr := flatbuffers.NewBuilder(0)
 	// for each stat, send a message
-	for i, stat := range stats {
+	for _, stat := range stats {
+		bldr := flatbuffers.NewBuilder(0)
 		id := bldr.CreateByteVector(message.NewMessageID(c.Cfg.ID))
 		data := bldr.CreateByteVector(stat)
 		message.MessageStart(bldr)
@@ -346,8 +335,6 @@ func (c *Client) SendCPUStats() error {
 		message.MessageAddData(bldr, data)
 		bldr.Finish(message.MessageEnd(bldr))
 		c.SendB <- bldr.Bytes[bldr.Head():]
-		fmt.Fprintf(os.Stdout, "CPUStats: messages %d sent\n", i+1)
-		bldr.Reset()
 	}
 	// TODO: only reset the stats if the send was received by the server
 	c.ResetCPUStats()
@@ -370,8 +357,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUStat:
-		s := sysinfo.UnmarshalCPUStatsToString(msg.DataBytes())
-		fmt.Println(s)
+		fmt.Println(sysinfo.UnmarshalCPUStatsToString(msg.DataBytes()))
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))

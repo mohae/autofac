@@ -37,7 +37,6 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
-	fmt.Println("*** looking up client stuff ***")
 	var cl *autofact.Client
 	var message string
 	var ok bool
@@ -49,7 +48,6 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 	id := binary.LittleEndian.Uint32(b)
 	if id == 0 {
-		fmt.Println("*** new client ***")
 		// get a new client and its ID
 		cl, err = srvr.NewClient()
 		if err != nil {
