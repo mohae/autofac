@@ -32,7 +32,7 @@ func realMain() int {
 	b[2] = 0
 	b[3] = 1
 	v := binary.LittleEndian.Uint32(b)
-	fmt.Println(v)
+	fmt.Printf("%x\n", v)
 	srvr = newServer(v)
 
 	// bdb is used as the extension for bolt db.
@@ -42,7 +42,7 @@ func realMain() int {
 		return 1
 	}
 	defer srvr.DB.DB.Close()
-
+	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
 	err = http.ListenAndServe(fmt.Sprintf("%s", *addr), nil)
 	if err != nil {
