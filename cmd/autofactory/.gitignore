@@ -1,2 +1,4 @@
 autofactory
 autofactory.exe
+*.bdb
+*.db

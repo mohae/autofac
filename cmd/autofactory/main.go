@@ -34,8 +34,17 @@ func realMain() int {
 	v := binary.LittleEndian.Uint32(b)
 	fmt.Println(v)
 	srvr = newServer(v)
+
+	// bdb is used as the extension for bolt db.
+	err := srvr.DB.Open("autofact.bdb")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error opening database: %s", err)
+		return 1
+	}
+	defer srvr.DB.DB.Close()
+
 	http.HandleFunc("/client", serveClient)
-	err := http.ListenAndServe(fmt.Sprintf("%s", *addr), nil)
+	err = http.ListenAndServe(fmt.Sprintf("%s", *addr), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to start server: %s\n", err)
 		return 1

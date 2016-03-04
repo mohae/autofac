@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/db"
 )
 
 type server struct {
@@ -19,6 +20,7 @@ type server struct {
 	// more than once:  this requires detection of reconnect of an
 	// existing client vs an existing client maintaining multiple
 	// con-current connections
+	DB db.Bolt
 }
 
 func newServer(id uint32) server {
@@ -28,4 +30,34 @@ func newServer(id uint32) server {
 		PongWait:     autofact.PongWait,
 		Inventory:    newInventory(),
 	}
+}
+
+// LoadInventory populates the inventory from the database.  This is a cached
+// list of clients we are aware of.
+func (s *server) LoadInventory() (int, error) {
+	var n int
+	ids, err := s.DB.ClientIDs()
+	if err != nil {
+		return n, err
+	}
+	for i, id := range ids {
+		c := autofact.NewClient(id)
+		s.Inventory.AddClient(id, c)
+		n = i
+	}
+	return n, nil
+}
+
+// Client checks the inventory to see if the client exists
+func (s *server) Client(id uint32) (*autofact.Client, bool) {
+	return s.Inventory.Client(id)
+}
+
+// NewClient creates a new client.
+func (s *server) NewClient() (*autofact.Client, error) {
+	// get a new client
+	cl := s.Inventory.NewClient()
+	// save the client info to the db
+	err := s.DB.SaveClient(cl.ID)
+	return cl, err
 }

@@ -51,7 +51,11 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	if id == 0 {
 		fmt.Println("*** new client ***")
 		// get a new client and its ID
-		cl = srvr.Inventory.NewClient()
+		cl, err = srvr.NewClient()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to create new client")
+			return
+		}
 		fmt.Printf("new ID: %d\n", cl.ID)
 		id := make([]byte, 4)
 		binary.LittleEndian.PutUint32(id, cl.ID)
@@ -63,9 +67,13 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 
 	message = fmt.Sprintf("welcome back %X\n", id)
-	cl, ok = srvr.Inventory.Client(id)
+	cl, ok = srvr.Client(id)
 	if !ok {
-		cl = srvr.Inventory.NewClient()
+		cl, err = srvr.NewClient()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "unable to create new client")
+			return
+		}
 		// send the new client ID
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, cl.ID)
