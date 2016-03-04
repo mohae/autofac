@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math/big"
 	"math/rand"
+	"strconv"
+	"time"
 )
 
 const max64 = 1<<63 - 1
@@ -62,4 +64,28 @@ func Int64ToBytes(x int64) [8]byte {
 func Int64ToByteSlice(x int64) []byte {
 	b := Int64ToBytes(x)
 	return b[:]
+}
+
+type Duration time.Duration
+
+func (d *Duration) UnmarshalJSON(data []byte) error {
+	if len(data) == 0 {
+		*d = 0
+		return nil
+	}
+
+	text := string(data)
+	t, err := time.ParseDuration(text)
+	if err == nil {
+		*d = Duration(t)
+		return nil
+	}
+	i, err := strconv.ParseInt(text, 10, 64)
+	if err == nil {
+		*d = Duration(time.Duration(i) * time.Second)
+		return nil
+	}
+	f, err := strconv.ParseFloat(text, 64)
+	*d = Duration(time.Duration(f) * time.Second)
+	return err
 }
