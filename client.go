@@ -17,55 +17,30 @@ import (
 
 // Client is anything that talks to the server.
 type Client struct {
-	ID              uint32        `json:"id"`
-	ServerID        uint32        `json:"server_id"`
-	Datacenter      string        `json:"datacenter"`
-	Groups          []string      `json:"groups"`
-	Roles           []string      `json:"roles"`
-	ServerURL       url.URL       `json:"server_url"`
-	ConnectInterval time.Duration `json:"connect_Interval"`
-	ConnectPeriod   time.Duration `json:"connect_period"`
-	// The interval to check system info: 0 means don't check.
-	HealthbeatInterval time.Duration `json:"healthbeat_interval"`
-	// PushPeriod is the interval to push accumulated data to the server.
-	// If the server connection is down; nothing will be pushed and the
-	// data will continue to accumulate on the client side.
-	HealthbeatPushPeriod time.Duration `json:"healthbeat_push_period"`
-	// Current cache for accumulated CPU Stats using flatbuffers
-	CPUstats [][]byte `json:"cpu_stats"`
-
-	WS *websocket.Conn `json:"-"`
+	CPUstats [][]byte        `json:"cpu_stats"`
+	Cfg      ClientCfg       `json:"-"`
+	WS       *websocket.Conn `json:"-"`
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
-	SendB       chan []byte   `json:"-"`
-	SendStr     chan string   `json:"-"`
-	PingPeriod  time.Duration `json:"-"`
-	PongWait    time.Duration `json:"-"`
-	WriteWait   time.Duration `json:"-"`
+	SendB       chan []byte `json:"-"`
+	SendStr     chan string `json:"-"`
 	mu          sync.Mutex
 	isServer    bool
 	isConnected bool
+	ServerURL   url.URL `json:"-"`
 }
 
 func NewClient(id uint32) *Client {
 	return &Client{
-		ID: id,
+		Cfg: ClientCfg{
+			ID: id,
+		},
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
 		SendB:   make(chan []byte, 10),
 		SendStr: make(chan string, 10),
 	}
-}
-
-func (c *Client) Configure(cfg *ClientCfg) {
-	c.ConnectInterval = cfg.ConnectInterval
-	c.ConnectPeriod = cfg.ConnectPeriod
-	c.HealthbeatInterval = cfg.HealthbeatInterval
-	c.HealthbeatPushPeriod = cfg.HealthbeatPushPeriod
-	c.PingPeriod = PingPeriod
-	c.PongWait = PongWait
-	c.WriteWait = WriteWait
 }
 
 // Connect handles connecting to the server and returns the connection status.
@@ -84,19 +59,19 @@ func (c *Client) Connect() bool {
 		return false
 	}
 	start := time.Now()
-	retryEnd := start.Add(c.ConnectPeriod)
+	retryEnd := start.Add(c.Cfg.ConnectPeriod)
 	// connect to server; retry until the retry period has expired
 	for {
 		if time.Now().After(retryEnd) {
-			fmt.Fprintln(os.Stderr, "timed out while trying to connect to the server")
+			fmt.Fprintf(os.Stderr, "timed out while trying to connect to the server: %s\n", c.ServerURL.String())
 			return false
 		}
 		err := c.DialServer()
 		if err == nil {
 			break
 		}
-		time.Sleep(c.ConnectInterval)
-		fmt.Println("unable to connect to the server: retrying...")
+		time.Sleep(c.Cfg.ConnectInterval)
+		fmt.Printf("unable to connect to the server %s: retrying...\n", c.ServerURL.String())
 	}
 	// Send the client's ID; if it's empty or can't be found, the server will
 	// respond with one.  Retry until the server responds, or until the
@@ -105,8 +80,8 @@ func (c *Client) Connect() bool {
 	var typ int
 	var p []byte
 	b := make([]byte, 4)
-	if c.ID > 0 {
-		binary.LittleEndian.PutUint32(b, c.ID)
+	if c.Cfg.ID > 0 {
+		binary.LittleEndian.PutUint32(b, c.Cfg.ID)
 	}
 	err = c.WS.WriteMessage(websocket.BinaryMessage, b)
 	if err != nil {
@@ -126,8 +101,8 @@ func (c *Client) Connect() bool {
 	switch typ {
 	case websocket.BinaryMessage:
 		// a binary response is a clientID
-		c.ID = binary.LittleEndian.Uint32(p[:4])
-		fmt.Printf("new ID: %d\n", c.ID)
+		c.Cfg.ID = binary.LittleEndian.Uint32(p[:4])
+		fmt.Printf("new ID: %d\n", c.Cfg.ID)
 	case websocket.TextMessage:
 		fmt.Printf("%s\n", string(p))
 	default:
@@ -165,7 +140,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 			}
-		case <-time.After(c.PingPeriod):
+		case <-time.After(c.Cfg.PingPeriod):
 			// only ping if we are connected
 			if !c.IsConnected() {
 				continue
@@ -323,12 +298,12 @@ func (c *Client) CPUStats() [][]byte {
 func (c *Client) Healthbeat() {
 	fmt.Println("started Healthbeat")
 	// An interval of 0 means no healthbeat
-	if c.HealthbeatInterval == 0 {
+	if c.Cfg.HealthbeatInterval == 0 {
 		return
 	}
 	cpuCh := make(chan []byte)
-	go sysinfo.CPUStatsTicker(c.HealthbeatInterval, cpuCh)
-	t := time.NewTicker(c.HealthbeatPushPeriod)
+	go sysinfo.CPUStatsTicker(c.Cfg.HealthbeatInterval, cpuCh)
+	t := time.NewTicker(c.Cfg.HealthbeatPushPeriod)
 	defer t.Stop()
 	for {
 		select {
@@ -362,7 +337,7 @@ func (c *Client) SendCPUStats() error {
 	bldr := flatbuffers.NewBuilder(0)
 	// for each stat, send a message
 	for i, stat := range stats {
-		id := bldr.CreateByteVector(message.NewMessageID(c.ID))
+		id := bldr.CreateByteVector(message.NewMessageID(c.Cfg.ID))
 		data := bldr.CreateByteVector(stat)
 		message.MessageStart(bldr)
 		message.MessageAddID(bldr, id)

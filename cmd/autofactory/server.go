@@ -58,6 +58,6 @@ func (s *server) NewClient() (*autofact.Client, error) {
 	// get a new client
 	cl := s.Inventory.NewClient()
 	// save the client info to the db
-	err := s.DB.SaveClient(cl.ID)
+	err := s.DB.SaveClient(cl.Cfg.ID)
 	return cl, err
 }

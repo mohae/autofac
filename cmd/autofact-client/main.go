@@ -25,8 +25,8 @@ var cfgFile = "autofact-client.json"
 
 // initialize the cfg to defaults
 func init() {
-	cfg.Addr = "127.0.0.1"
-	cfg.Port = "8675"
+	cfg.ServerAddr = "127.0.0.1"
+	cfg.ServerPort = "8675"
 	cfg.HealthbeatInterval = time.Duration(5) * time.Second
 	cfg.HealthbeatPushPeriod = time.Duration(10) * time.Second
 	cfg.ConnectInterval = time.Duration(5) * time.Second
@@ -58,7 +58,7 @@ func realMain() int {
 	flag.Parse()
 
 	if addr != "" {
-		cfg.Addr = addr
+		cfg.ServerAddr = addr
 	}
 	if healthbeatInterval != "" {
 		d, err := time.ParseDuration(healthbeatInterval)
@@ -77,7 +77,7 @@ func realMain() int {
 		cfg.HealthbeatPushPeriod = d
 	}
 	if port != "" {
-		cfg.Port = port
+		cfg.ServerPort = port
 	}
 	if connectPeriod != "" {
 		d, err := time.ParseDuration(connectPeriod)
@@ -90,9 +90,9 @@ func realMain() int {
 
 	// get a client
 	c := autofact.NewClient(uint32(0))
-	c.Configure(&cfg)
+	c.Cfg = cfg
 	// connect to the Server
-	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", cfg.Addr, cfg.Port), Path: "/client"}
+	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", cfg.ServerAddr, cfg.ServerPort), Path: "/client"}
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
 	// must have a connection before doing anything
@@ -105,6 +105,7 @@ func realMain() int {
 	}
 	if !c.IsConnected() {
 		fmt.Fprintf(os.Stderr, "unable to connect to %s\n", c.ServerURL.String())
+		return 1
 	}
 	// start the healthbeat monitoring
 	go c.Healthbeat()
