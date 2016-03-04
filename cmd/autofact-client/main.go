@@ -107,6 +107,11 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "unable to connect to %s\n", c.ServerURL.String())
 		return 1
 	}
+	// if connected, save the cfg: this will also save the ClientID
+	err := c.Cfg.Save()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "save of cfg failed: %s\n", err)
+	}
 	// start the healthbeat monitoring
 	go c.Healthbeat()
 	c.WS.SetPongHandler(c.PongHandler)

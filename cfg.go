@@ -9,22 +9,22 @@ import (
 )
 
 type ClientCfg struct {
-	ID                      uint32 `json:"id"`
-	ServerAddr              string `json:"server_address"`
-	ServerPort              string `json:"server_port"`
-	ServerID                uint32 `json:"server_id"`
-	RawConnectInterval      string `json:"connect_interval"`
-	ConnectInterval         time.Duration
-	RawConnectPeriod        string `json:"connect_period"`
-	ConnectPeriod           time.Duration
-	RawHealthbeatInterval   string `json:"healthbeat_interval"`
-	HealthbeatInterval      time.Duration
-	RawHealthbeatPushPeriod string `json:"healthbeat_push_period"`
-	HealthbeatPushPeriod    time.Duration
+	ID                      uint32        `json:"id"`
+	ServerAddr              string        `json:"server_address"`
+	ServerPort              string        `json:"server_port"`
+	ServerID                uint32        `json:"server_id"`
+	RawConnectInterval      string        `json:"connect_interval"`
+	ConnectInterval         time.Duration `json:"-"`
+	RawConnectPeriod        string        `json:"connect_period"`
+	ConnectPeriod           time.Duration `json:"-"`
+	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
+	HealthbeatInterval      time.Duration `json:"-"`
+	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
+	HealthbeatPushPeriod    time.Duration `json:"-"`
 	PingPeriod              time.Duration `json:"-"`
 	PongWait                time.Duration `json:"-"`
 	RawSaveInterval         string        `json:"save_interval"`
-	SaveInterval            time.Duration
+	SaveInterval            time.Duration `json:"-"`
 	WriteWait               time.Duration `json:"-"`
 	filename                string
 }
@@ -74,7 +74,7 @@ func (c *ClientCfg) Save() error {
 	if err != nil {
 		return fmt.Errorf("fail: client cfg save: %s", err)
 	}
-	f, err := os.OpenFile(c.filename, os.O_CREATE|os.O_TRUNC|os.O_RDONLY, 0640)
+	f, err := os.OpenFile(c.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
 	if err != nil {
 		return fmt.Errorf("fail: client cfg save: %s", err)
 	}

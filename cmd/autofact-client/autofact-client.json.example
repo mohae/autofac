@@ -1,8 +1,9 @@
 {
-	"address": "127.0.0.1",
 	"connect_interval": "5s",
 	"connect_period": "15m",
 	"healthbeat_interval": "5s",
-	"healthbeat_push_period": "10s",
-	"port": "8675"
+	"healthbeat_push_period": "15s",
+    "save_interval": "10s",
+	"server_address": "127.0.0.1",
+	"server_port": "8675"
 }
