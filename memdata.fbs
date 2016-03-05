@@ -1,0 +1,19 @@
+// memdata.fbs
+namespace sysinfo;
+
+table MemData {
+	Timestamp: string;
+	RAMTotal: long;
+	RAMUsed: long;
+	RAMFree: long;
+	RAMShared: long;
+	RAMBuffers: long;
+	RAMCached: long;
+	CacheUsed: long;
+	CacheFree: long;
+	SwapTotal: long;
+	SwapUsed: long;
+	SwapFree: long;
+}
+
+root_type MemData;

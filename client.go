@@ -266,6 +266,15 @@ func (c *Client) AddCPUStats(stats []byte) int {
 	return len(c.CPUstats)
 }
 
+// EnqueueMemData adds the received data to the MemData buffer.  The current
+// number of entries in the buffer is returned.
+func (c *Client) EnqueueMemData(data []byte) int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.MemData = append(c.MemData, data)
+	return len(c.MemData)
+}
+
 // If the message send fails, whatever was cached will be lost.
 // TODO: the current stats get copied for send; should the stat slice
 // get reset now?  There is possible data loss this way; but there's
@@ -285,6 +294,18 @@ func (c *Client) CPUStats() [][]byte {
 	copy(stats, c.CPUstats)
 	c.CPUstats = nil
 	return stats
+}
+
+// FlushMemData returns a copy of the client's MemData and nils the client's
+// cache.
+// The notes above apply here too.
+func (c *Client) FlushMemData() [][]byte {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	data := make([][]byte, len(c.MemData))
+	copy(data, c.MemData)
+	c.MemData = nil
+	return data
 }
 
 func (c *Client) Healthbeat() {
@@ -311,17 +332,19 @@ func (c *Client) Healthbeat() {
 				fmt.Println("cpu stats chan closed")
 				goto done
 			}
-			c.AddMemData(data)
+			c.EnqueueMemData(data)
 		case <-t.C:
 			if !c.IsConnected() {
 				continue
 			}
 			c.SendData(message.CPUData, c.CPUStats())
+			c.SendData(message.MemData, c.FlushMemData())
 		}
 	}
 done:
 	// Flush the buffer.
 	c.SendData(message.CPUData, c.CPUStats())
+	c.SendData(message.MemData, c.FlushMemData())
 }
 
 // SendData sends the received data to the server.  The caller checks to see
@@ -354,6 +377,8 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	switch k {
 	case message.CPUData:
 		fmt.Println(sysinfo.UnmarshalCPUStatsToString(msg.DataBytes()))
+	case message.MemData:
+		fmt.Println(sysinfo.UnmarshalMemDataToString(msg.DataBytes()))
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))
