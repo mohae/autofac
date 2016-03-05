@@ -353,7 +353,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	// process according to kind
 	k := message.Kind(msg.Kind())
 	switch k {
-	case message.CPUStat:
+	case message.CPUData:
 		fmt.Println(sysinfo.UnmarshalCPUStatsToString(msg.DataBytes()))
 	default:
 		fmt.Println("unknown message kind")

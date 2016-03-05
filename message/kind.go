@@ -8,6 +8,7 @@ const (
 	Generic
 	Command
 	CPUData
+	MemData
 )
 
 func (k Kind) Int16() int16 {
