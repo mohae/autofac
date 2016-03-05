@@ -1,7 +1,7 @@
-// cpustat.fbs
+// cpudata.fbs
 namespace sysinfo;
 
-table CPUStat {
+table CPUData {
     Timestamp:string;
     CPUID:string;
     Usr:short;
@@ -16,4 +16,4 @@ table CPUStat {
     Idle:short;
 }
 
-root_type CPUStat;
+root_type CPUData;

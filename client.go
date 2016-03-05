@@ -17,10 +17,10 @@ import (
 
 // Client is anything that talks to the server.
 type Client struct {
-	CPUstats [][]byte        `json:"cpu_stats"`
-	MemData  [][]byte        `json:"mem_data"`
-	Cfg      ClientCfg       `json:"-"`
-	WS       *websocket.Conn `json:"-"`
+	CPUData [][]byte        `json:"cpu_stat"`
+	MemData [][]byte        `json:"mem_data"`
+	Cfg     ClientCfg       `json:"-"`
+	WS      *websocket.Conn `json:"-"`
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
 	SendB       chan []byte `json:"-"`
@@ -258,12 +258,12 @@ func (c *Client) PongHandler(msg string) error {
 	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
-// TODO: should cpustats be enclosed in a struct for locking purposes?
-func (c *Client) AddCPUStats(stats []byte) int {
+// TODO: should CPUData be enclosed in a struct for locking purposes?
+func (c *Client) EnqueueCPUData(data []byte) int {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.CPUstats = append(c.CPUstats, stats)
-	return len(c.CPUstats)
+	c.CPUData = append(c.CPUData, data)
+	return len(c.CPUData)
 }
 
 // EnqueueMemData adds the received data to the MemData buffer.  The current
@@ -283,17 +283,17 @@ func (c *Client) EnqueueMemData(data []byte) int {
 // which could block the stats reading process leading to data loss due to
 // missed reads.  I'm thinking COW or delete now; but punting becasue it
 // really doesn't matter as this is just an experiment, right now.
-// This also applies to CPUStatsFB
+// This also applies to CPUDatasFB
 // TODO: should the messages to be sent be copied to a send cache so that
 // there isn't data loss on a failed send?  Consecutive PushPeriods that
 // failed to send may be problematic in that situation.
-func (c *Client) CPUStats() [][]byte {
+func (c *Client) FlushCPUData() [][]byte {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	stats := make([][]byte, len(c.CPUstats))
-	copy(stats, c.CPUstats)
-	c.CPUstats = nil
-	return stats
+	data := make([][]byte, len(c.CPUData))
+	copy(data, c.CPUData)
+	c.CPUData = nil
+	return data
 }
 
 // FlushMemData returns a copy of the client's MemData and nils the client's
@@ -315,18 +315,18 @@ func (c *Client) Healthbeat() {
 	}
 	cpuCh := make(chan []byte)
 	memCh := make(chan []byte)
-	go sysinfo.CPUStatsTicker(c.Cfg.HealthbeatInterval, cpuCh)
+	go sysinfo.CPUDataTicker(c.Cfg.HealthbeatInterval, cpuCh)
 	go sysinfo.MemDataTicker(c.Cfg.HealthbeatInterval, memCh)
 	t := time.NewTicker(c.Cfg.HealthbeatPushPeriod)
 	defer t.Stop()
 	for {
 		select {
-		case stats, ok := <-cpuCh:
+		case data, ok := <-cpuCh:
 			if !ok {
 				fmt.Println("cpu stats chan closed")
 				goto done
 			}
-			c.AddCPUStats(stats)
+			c.EnqueueCPUData(data)
 		case data, ok := <-memCh:
 			if !ok {
 				fmt.Println("cpu stats chan closed")
@@ -337,13 +337,13 @@ func (c *Client) Healthbeat() {
 			if !c.IsConnected() {
 				continue
 			}
-			c.SendData(message.CPUData, c.CPUStats())
+			c.SendData(message.CPUData, c.FlushCPUData())
 			c.SendData(message.MemData, c.FlushMemData())
 		}
 	}
 done:
 	// Flush the buffer.
-	c.SendData(message.CPUData, c.CPUStats())
+	c.SendData(message.CPUData, c.FlushCPUData())
 	c.SendData(message.MemData, c.FlushMemData())
 }
 
@@ -376,7 +376,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUData:
-		fmt.Println(sysinfo.UnmarshalCPUStatsToString(msg.DataBytes()))
+		fmt.Println(sysinfo.UnmarshalCPUDatasToString(msg.DataBytes()))
 	case message.MemData:
 		fmt.Println(sysinfo.UnmarshalMemDataToString(msg.DataBytes()))
 	default:
