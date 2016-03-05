@@ -18,6 +18,7 @@ import (
 // Client is anything that talks to the server.
 type Client struct {
 	CPUstats [][]byte        `json:"cpu_stats"`
+	MemData  [][]byte        `json:"mem_data"`
 	Cfg      ClientCfg       `json:"-"`
 	WS       *websocket.Conn `json:"-"`
 	// Channel for outbound binary messages.  The message is assumed to be a
@@ -293,7 +294,9 @@ func (c *Client) Healthbeat() {
 		return
 	}
 	cpuCh := make(chan []byte)
+	memCh := make(chan []byte)
 	go sysinfo.CPUStatsTicker(c.Cfg.HealthbeatInterval, cpuCh)
+	go sysinfo.MemDataTicker(c.Cfg.HealthbeatInterval, memCh)
 	t := time.NewTicker(c.Cfg.HealthbeatPushPeriod)
 	defer t.Stop()
 	for {
@@ -304,49 +307,43 @@ func (c *Client) Healthbeat() {
 				goto done
 			}
 			c.AddCPUStats(stats)
+		case data, ok := <-memCh:
+			if !ok {
+				fmt.Println("cpu stats chan closed")
+				goto done
+			}
+			c.AddMemData(data)
 		case <-t.C:
 			if !c.IsConnected() {
 				continue
 			}
-			c.SendCPUStats()
+			c.SendData(message.CPUData, c.CPUStats())
 		}
 	}
 done:
 	// Flush the buffer.
-	c.SendCPUStats()
+	c.SendData(message.CPUData, c.CPUStats())
 }
 
-// SendCPUStatsFB sends the cached cpu stats to the server.  The caller
-// checks to see if the client is connected to the server before calling.
-// If the connection is lost during processing, the cached stats will be lost.
+// SendData sends the received data to the server.  The caller checks to see
+// if the client is connected to the server before calling.  If the connection
+// is lost during processing, the cached stats will be lost.
 // TODO:  should this be more resilient?
-func (c *Client) SendCPUStats() error {
-	// Get a copy of the stats
-	stats := c.CPUStats()
-	// for each stat, send a message
-	for _, stat := range stats {
+func (c *Client) SendData(kind message.Kind, data [][]byte) error {
+	// for each data, send a message
+	for _, v := range data {
 		bldr := flatbuffers.NewBuilder(0)
 		id := bldr.CreateByteVector(message.NewMessageID(c.Cfg.ID))
-		data := bldr.CreateByteVector(stat)
+		d := bldr.CreateByteVector(v)
 		message.MessageStart(bldr)
 		message.MessageAddID(bldr, id)
 		message.MessageAddType(bldr, websocket.BinaryMessage)
-		message.MessageAddKind(bldr, int16(message.CPUStat))
-		message.MessageAddData(bldr, data)
+		message.MessageAddKind(bldr, kind.Int16())
+		message.MessageAddData(bldr, d)
 		bldr.Finish(message.MessageEnd(bldr))
 		c.SendB <- bldr.Bytes[bldr.Head():]
 	}
-	// TODO: only reset the stats if the send was received by the server
-	c.ResetCPUStats()
 	return nil
-}
-
-// TODO: is this obsolete now that copying the stats to the sending process
-// does this?
-func (c *Client) ResetCPUStats() {
-	c.mu.Lock()
-	c.CPUstats = nil
-	c.mu.Unlock()
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.

@@ -7,5 +7,9 @@ const (
 	Unknown Kind = iota
 	Generic
 	Command
-	CPUStat
+	CPUData
 )
+
+func (k Kind) Int16() int16 {
+	return int16(k)
+}
