@@ -168,7 +168,6 @@ func (c *Client) Reconnect() bool {
 
 func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
-	ackMsg := []byte("ok")
 	defer close(doneCh)
 	for {
 		typ, p, err := c.WS.ReadMessage()
@@ -188,11 +187,11 @@ func (c *Client) Listen(doneCh chan struct{}) {
 		switch typ {
 		case websocket.TextMessage:
 			fmt.Printf("textmessage: %s\n", p)
-			if bytes.Equal(p, ackMsg) {
+			if bytes.Equal(p, AckMsg) {
 				// if this is an acknowledgement message, do nothing
 				continue
 			}
-			err := c.WS.WriteMessage(websocket.TextMessage, ackMsg)
+			err := c.WS.WriteMessage(websocket.TextMessage, AckMsg)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); !ok {
 					return
@@ -206,7 +205,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				return
 			}
 		case websocket.BinaryMessage:
-			err = c.WS.WriteMessage(websocket.TextMessage, ackMsg)
+			err = c.WS.WriteMessage(websocket.TextMessage, AckMsg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
 				if _, ok := err.(*websocket.CloseError); !ok {

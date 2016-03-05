@@ -10,3 +10,5 @@ var (
 	PongWait   = 30 * time.Second
 	PingPeriod = 25 * time.Second
 )
+
+var AckMsg = []byte("ok")
