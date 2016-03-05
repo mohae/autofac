@@ -3,22 +3,21 @@ package main
 import (
 	"sync"
 
-	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/util"
 )
 
 type inventory struct {
-	clients map[uint32]*autofact.Client
+	clients map[uint32]*client
 	mu      sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		clients: map[uint32]*autofact.Client{},
+		clients: map[uint32]*client{},
 	}
 }
 
-func (i *inventory) AddClient(id uint32, c *autofact.Client) {
+func (i *inventory) AddClient(id uint32, c *client) {
 	// should collision detection be done/force update Client
 	// if it exists?
 	i.mu.Lock()
@@ -37,20 +36,20 @@ func (i *inventory) clientExists(id uint32) bool {
 	return ok
 }
 
-func (i *inventory) Client(id uint32) (*autofact.Client, bool) {
+func (i *inventory) Client(id uint32) (*client, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	c, ok := i.clients[id]
 	return c, ok
 }
 
-func (i *inventory) NewClient() *autofact.Client {
+func (i *inventory) NewClient() *client {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	for {
 		id := util.RandUint32()
 		if !i.clientExists(id) {
-			c := autofact.NewClient(id)
+			c := newClient(id)
 			i.clients[id] = c
 			return c
 		}

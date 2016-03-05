@@ -8,7 +8,6 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
-	//"github.com/mohae/autofact/util"
 )
 
 var upgrader = websocket.Upgrader{
@@ -37,7 +36,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
-	var cl *autofact.Client
+	var cl *client
 	var message string
 	var ok bool
 	// decode the byte (should be len 4); if something else, reject
@@ -92,8 +91,6 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 listen:
 	// the client needs the current connection
 	cl.WS = c
-	// let the client struct know it is on the server side
-	cl.SetIsServer(true)
 	// set the ping hanlder
 	cl.WS.SetPingHandler(cl.PingHandler)
 	cl.WS.SetPingHandler(cl.PongHandler)
