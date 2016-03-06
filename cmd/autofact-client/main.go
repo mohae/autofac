@@ -37,18 +37,19 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "unable to connect to %s\n", c.ServerURL.String())
 		return 1
 	}
+	// start the go routines first
+	go c.Listen(doneCh)
+	go c.Healthbeat()
+	// start the healthbeat monitoring
+	c.WS.SetPongHandler(c.PongHandler)
+	c.WS.SetPingHandler(c.PingHandler)
+	// start the connection handler
+	go c.MessageWriter(doneCh)
 	// if connected, save the cfg: this will also save the ClientID
 	err = c.ConnCfg.Save()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "save of cfg failed: %s\n", err)
 	}
-	go c.Listen(doneCh)
-	// start the healthbeat monitoring
-	go c.Healthbeat()
-	c.WS.SetPongHandler(c.PongHandler)
-	c.WS.SetPingHandler(c.PingHandler)
-	// start the connection handler
-	go c.MessageWriter(doneCh)
 	<-doneCh
 	return 0
 }
