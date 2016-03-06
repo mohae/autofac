@@ -1,0 +1,12 @@
+// clientconf.fbs
+namespace client;
+
+table ClientConf {
+	HealthbeatInterval: long;
+    HealthbeatPushPeriod: long;
+    PingPeriod: long;
+    PongWait: long;
+    SaveInterval: long;
+}
+
+root_type ClientConf;
