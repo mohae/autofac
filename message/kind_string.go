@@ -4,9 +4,9 @@ package message
 
 import "fmt"
 
-const _Kind_name = "UnknownGenericCommandCPUDataMemData"
+const _Kind_name = "UnknownGenericCommandClientCfgCPUDataMemData"
 
-var _Kind_index = [...]uint8{0, 7, 14, 21, 28, 35}
+var _Kind_index = [...]uint8{0, 7, 14, 21, 30, 37, 44}
 
 func (i Kind) String() string {
 	if i < 0 || i >= Kind(len(_Kind_index)-1) {

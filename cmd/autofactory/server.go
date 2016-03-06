@@ -3,11 +3,14 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
+	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
@@ -16,8 +19,10 @@ import (
 type server struct {
 	// ID of the server
 	ID uint32
-	// Interval between pings
-	PingInterval time.Duration
+	// URL of the server
+	url.URL
+	// Period between pings
+	PingPeriod time.Duration
 	// How long to wait for a pong response before timing out
 	PongWait time.Duration
 	// A map of clients, by ID
@@ -31,10 +36,8 @@ type server struct {
 
 func newServer(id uint32) server {
 	return server{
-		ID:           id,
-		PingInterval: autofact.PingPeriod,
-		PongWait:     autofact.PongWait,
-		Inventory:    newInventory(),
+		ID:        id,
+		Inventory: newInventory(),
 	}
 }
 
@@ -55,48 +58,52 @@ func (s *server) LoadInventory() (int, error) {
 }
 
 // Client checks the inventory to see if the client exists
-func (s *server) Client(id uint32) (*client, bool) {
+func (s *server) Client(id uint32) (*Client, bool) {
 	return s.Inventory.Client(id)
 }
 
 // NewClient creates a new client.
-func (s *server) NewClient() (*client, error) {
+func (s *server) NewClient() (*Client, error) {
 	// get a new client
 	cl := s.Inventory.NewClient()
 	// save the client info to the db
-	err := s.DB.SaveClient(cl.Cfg.ID)
+	err := s.DB.SaveClient(cl.ID)
 	return cl, err
 }
 
 // client holds the server side client info
-type client struct {
-	Cfg         autofact.ClientCfg
+type Client struct {
+	ID uint32
+	client.Cfg
 	WS          *websocket.Conn
 	isConnected bool
 }
 
-func newClient(id uint32) *client {
-	return &client{
-		Cfg: autofact.ClientCfg{
-			ID:         id,
-			PingPeriod: autofact.PingPeriod,
-			PongWait:   autofact.PongWait,
-			WriteWait:  autofact.WriteWait,
+func newClient(id uint32) *Client {
+	return &Client{
+		ID: id,
+		Cfg: client.Cfg{
+			HealthbeatInterval:   clientCfg.HealthbeatInterval,
+			HealthbeatPushPeriod: clientCfg.HealthbeatPushPeriod,
+			PingPeriod:           clientCfg.PingPeriod,
+			PongWait:             clientCfg.PongWait,
+			SaveInterval:         clientCfg.SaveInterval,
+			WriteWait:            clientCfg.WriteWait,
 		},
 	}
 }
 
-func (c *client) PingHandler(msg string) error {
+func (c *Client) PingHandler(msg string) error {
 	fmt.Printf("ping: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
 }
 
-func (c *client) PongHandler(msg string) error {
+func (c *Client) PongHandler(msg string) error {
 	fmt.Printf("pong: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
-func (c *client) Listen(doneCh chan struct{}) {
+func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
 	defer close(doneCh)
 	for {
@@ -143,8 +150,23 @@ func (c *client) Listen(doneCh chan struct{}) {
 	}
 }
 
+// WriteBinaryMessage serializes a message and writes it to the socket as
+// a binary message.
+func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
+	bldr := flatbuffers.NewBuilder(0)
+	id := bldr.CreateByteVector(message.NewMessageID(c.ID))
+	d := bldr.CreateByteVector(p)
+	message.MessageStart(bldr)
+	message.MessageAddID(bldr, id)
+	message.MessageAddType(bldr, websocket.BinaryMessage)
+	message.MessageAddKind(bldr, k.Int16())
+	message.MessageAddData(bldr, d)
+	bldr.Finish(message.MessageEnd(bldr))
+	c.WS.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
+}
+
 // binary messages are expected to be flatbuffer encoding of message.Message.
-func (c *client) processBinaryMessage(p []byte) error {
+func (c *Client) processBinaryMessage(p []byte) error {
 	// unmarshal the message
 	msg := message.GetRootAsMessage(p, 0)
 	// process according to kind

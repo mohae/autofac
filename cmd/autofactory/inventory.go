@@ -7,17 +7,17 @@ import (
 )
 
 type inventory struct {
-	clients map[uint32]*client
+	clients map[uint32]*Client
 	mu      sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		clients: map[uint32]*client{},
+		clients: map[uint32]*Client{},
 	}
 }
 
-func (i *inventory) AddClient(id uint32, c *client) {
+func (i *inventory) AddClient(id uint32, c *Client) {
 	// should collision detection be done/force update Client
 	// if it exists?
 	i.mu.Lock()
@@ -36,14 +36,14 @@ func (i *inventory) clientExists(id uint32) bool {
 	return ok
 }
 
-func (i *inventory) Client(id uint32) (*client, bool) {
+func (i *inventory) Client(id uint32) (*Client, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	c, ok := i.clients[id]
 	return c, ok
 }
 
-func (i *inventory) NewClient() *client {
+func (i *inventory) NewClient() *Client {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	for {

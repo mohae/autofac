@@ -7,6 +7,7 @@ const (
 	Unknown Kind = iota
 	Generic
 	Command
+	ClientCfg
 	CPUData
 	MemData
 )
