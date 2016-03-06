@@ -21,12 +21,12 @@ func (rcv *CPUData) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Pos = i
 }
 
-func (rcv *CPUData) Timestamp() []byte {
+func (rcv *CPUData) Timestamp() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		return rcv._tab.ByteVector(o + rcv._tab.Pos)
+		return rcv._tab.GetInt64(o + rcv._tab.Pos)
 	}
-	return nil
+	return 0
 }
 
 func (rcv *CPUData) CPUID() []byte {
@@ -118,7 +118,7 @@ func (rcv *CPUData) Idle() int16 {
 }
 
 func CPUDataStart(builder *flatbuffers.Builder) { builder.StartObject(12) }
-func CPUDataAddTimestamp(builder *flatbuffers.Builder, Timestamp flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(Timestamp), 0) }
+func CPUDataAddTimestamp(builder *flatbuffers.Builder, Timestamp int64) { builder.PrependInt64Slot(0, Timestamp, 0) }
 func CPUDataAddCPUID(builder *flatbuffers.Builder, CPUID flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(1, flatbuffers.UOffsetT(CPUID), 0) }
 func CPUDataAddUsr(builder *flatbuffers.Builder, Usr int16) { builder.PrependInt16Slot(2, Usr, 0) }
 func CPUDataAddNice(builder *flatbuffers.Builder, Nice int16) { builder.PrependInt16Slot(3, Nice, 0) }

@@ -34,16 +34,14 @@ func MemDataTicker(interval time.Duration, outCh chan []byte) {
 		case <-ticker.C:
 			cmd := exec.Command("free", "-k")
 			cmd.Stdout = &out
-			// get the current time in millisecond resolution
-			t := time.Now().Format("2006-01-02 15:04:05.000000")
+			// get the current time in millisecond resolution; always as UTC
+			t := time.Now().UTC().UnixNano()
 			err := cmd.Run()
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error getting memory stats: %s\n", err)
 			}
-			// create the time string for flatbuffer
-			ts := bldr.CreateString(t)
 			MemDataStart(bldr)
-			MemDataAddTimestamp(bldr, ts)
+			MemDataAddTimestamp(bldr, t)
 			// holds the current field value
 			fld := make([]byte, 12)
 			// process the output
@@ -128,5 +126,5 @@ func MemDataTicker(interval time.Duration, outCh chan []byte) {
 // the data as a formatted string.
 func UnmarshalMemDataToString(p []byte) string {
 	m := GetRootAsMemData(p, 0)
-	return fmt.Sprintf("%s\n%d\t%d\t%d\t%d\t%d\t%d\n%d\t%d\n%d\t%d\t%d\n", string(m.Timestamp()), m.RAMTotal(), m.RAMUsed(), m.RAMFree(), m.RAMShared(), m.RAMBuffers(), m.RAMCached(), m.CacheUsed(), m.CacheFree(), m.SwapTotal(), m.SwapUsed(), m.SwapFree())
+	return fmt.Sprintf("%d\n%d\t%d\t%d\t%d\t%d\t%d\n%d\t%d\n%d\t%d\t%d\n", m.Timestamp(), m.RAMTotal(), m.RAMUsed(), m.RAMFree(), m.RAMShared(), m.RAMBuffers(), m.RAMCached(), m.CacheUsed(), m.CacheFree(), m.SwapTotal(), m.SwapUsed(), m.SwapFree())
 }

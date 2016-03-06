@@ -2,7 +2,7 @@
 namespace sysinfo;
 
 table MemData {
-	Timestamp: string;
+	Timestamp: long;
 	RAMTotal: long;
 	RAMUsed: long;
 	RAMFree: long;

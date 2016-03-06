@@ -161,6 +161,7 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 				fmt.Fprintf(os.Stderr, "error getting cpu stats: %s\n", err)
 				return
 			}
+			t := time.Now().UTC().UnixNano()
 			// process the output
 			for {
 				bs, err := out.ReadBytes(nl)
@@ -181,8 +182,11 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 				if len(bs) == 0 {
 					continue
 				}
-				ts := builder.CreateString(string(bs[:11]))
-				// need to process the cpuid first because string
+				// Need to process the cpuid first because it's a string.
+				// everything prior to pos12 is the timestamp but we are using
+				// the timestamp obtained right before command execution for
+				// better time resolution and because the target DB expects
+				// an UTC timestamp instead of a string.
 				for i, v := range bs[12:] {
 					if v == 0x20 {
 						continue
@@ -204,7 +208,7 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 				ndx = 0
 				CPUDataStart(builder)
 				CPUDataAddCPUID(builder, id)
-				CPUDataAddTimestamp(builder, ts)
+				CPUDataAddTimestamp(builder, t)
 				// ndx is the counter into tmp
 				// fieldNum is used to match up the current value to its struct
 				// field; the number does not translate to the ndx
@@ -276,5 +280,5 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 // the bytes as a formatted string.
 func UnmarshalCPUDataToString(p []byte) string {
 	c := GetRootAsCPUData(p, 0)
-	return fmt.Sprintf("%s\t%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\n", string(c.Timestamp()), string(c.CPUID()), float32(c.Usr())/100.0, float32(c.Nice())/100.0, float32(c.Sys())/100.0, float32(c.IOWait())/100.0, float32(c.IRQ())/100.0, float32(c.Soft())/100.0, float32(c.Steal())/100.0, float32(c.Guest())/100.0, float32(c.GNice())/100.0, float32(c.Idle())/100.0)
+	return fmt.Sprintf("%d\t%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\n", c.Timestamp(), string(c.CPUID()), float32(c.Usr())/100.0, float32(c.Nice())/100.0, float32(c.Sys())/100.0, float32(c.IOWait())/100.0, float32(c.IRQ())/100.0, float32(c.Soft())/100.0, float32(c.Steal())/100.0, float32(c.Guest())/100.0, float32(c.GNice())/100.0, float32(c.Idle())/100.0)
 }

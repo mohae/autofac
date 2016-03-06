@@ -21,12 +21,12 @@ func (rcv *MemData) Init(buf []byte, i flatbuffers.UOffsetT) {
 	rcv._tab.Pos = i
 }
 
-func (rcv *MemData) Timestamp() []byte {
+func (rcv *MemData) Timestamp() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(4))
 	if o != 0 {
-		return rcv._tab.ByteVector(o + rcv._tab.Pos)
+		return rcv._tab.GetInt64(o + rcv._tab.Pos)
 	}
-	return nil
+	return 0
 }
 
 func (rcv *MemData) RAMTotal() int64 {
@@ -118,7 +118,7 @@ func (rcv *MemData) SwapFree() int64 {
 }
 
 func MemDataStart(builder *flatbuffers.Builder) { builder.StartObject(12) }
-func MemDataAddTimestamp(builder *flatbuffers.Builder, Timestamp flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(Timestamp), 0) }
+func MemDataAddTimestamp(builder *flatbuffers.Builder, Timestamp int64) { builder.PrependInt64Slot(0, Timestamp, 0) }
 func MemDataAddRAMTotal(builder *flatbuffers.Builder, RAMTotal int64) { builder.PrependInt64Slot(1, RAMTotal, 0) }
 func MemDataAddRAMUsed(builder *flatbuffers.Builder, RAMUsed int64) { builder.PrependInt64Slot(2, RAMUsed, 0) }
 func MemDataAddRAMFree(builder *flatbuffers.Builder, RAMFree int64) { builder.PrependInt64Slot(3, RAMFree, 0) }

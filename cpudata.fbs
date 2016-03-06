@@ -2,7 +2,7 @@
 namespace sysinfo;
 
 table CPUData {
-    Timestamp:string;
+    Timestamp:long;
     CPUID:string;
     Usr:short;
     Nice:short;
