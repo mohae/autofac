@@ -7,10 +7,11 @@ import (
 	"github.com/mohae/autofact/util"
 )
 
+// NewMessageID creates a unique ID for a message and returns it as []byte.
 // a message id consists of:
-// timestamp: int64
-// sourceID:  uint32
-// randomBits: uint32
+//   timestamp: int64
+//   sourceID:  uint32
+//   random bits: uint32
 func NewMessageID(source uint32) []byte {
 	id := make([]byte, 16)
 	sid := make([]byte, 4)

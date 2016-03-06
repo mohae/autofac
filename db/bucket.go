@@ -16,7 +16,7 @@ const (
 	Datacenter
 )
 
-// formats is a slice of supported Formats
+// Buckets is a slice of top level buckets for the database.
 var Buckets = []Bucket{Invalid, Client, Role, Group, Cluster, Datacenter}
 
 // BucketFromString returns the Bucket for a given string, or Invalid for

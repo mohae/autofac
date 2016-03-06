@@ -124,6 +124,8 @@ func MemDataTicker(interval time.Duration, outCh chan []byte) {
 	}
 }
 
+// UnmarshalMemDataToString takes a flatbuffers serialized []byte and returns
+// the data as a formatted string.
 func UnmarshalMemDataToString(p []byte) string {
 	m := GetRootAsMemData(p, 0)
 	return fmt.Sprintf("%s\n%d\t%d\t%d\t%d\t%d\t%d\n%d\t%d\n%d\t%d\t%d\n", string(m.Timestamp()), m.RAMTotal(), m.RAMUsed(), m.RAMFree(), m.RAMShared(), m.RAMBuffers(), m.RAMCached(), m.CacheUsed(), m.CacheFree(), m.SwapTotal(), m.SwapUsed(), m.SwapFree())

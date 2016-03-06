@@ -19,6 +19,10 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
+// serveClient takes a new client connection and either looks up the
+// information for the client, or creates a new client and clientID ( in
+// instances where the client has either never connected before or it's
+// information cannot be found)
 func serveClient(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {

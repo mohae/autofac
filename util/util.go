@@ -9,9 +9,11 @@ import (
 	"time"
 )
 
-const max64 = 1<<63 - 1
+// max value for an int64
+const maxInt64 = 1<<63 - 1
 const alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
+// util has its own prng
 var prng = rand.New(rand.NewSource(seed()))
 
 func init() {
@@ -20,7 +22,7 @@ func init() {
 
 // seed gets a random int64 using a CSPRNG.
 func seed() int64 {
-	bi := big.NewInt(max64)
+	bi := big.NewInt(maxInt64)
 	r, err := crand.Int(crand.Reader, bi)
 	if err != nil {
 		panic(fmt.Sprintf("entropy read error: %s", err))
@@ -43,11 +45,12 @@ func NewStringID(n int) string {
 	return string(id)
 }
 
-// returns a uint32 uptained from prng
+// RandUint32 returns a uint32 obtained from prng
 func RandUint32() uint32 {
 	return prng.Uint32()
 }
 
+// Int64ToBytes takes an int64 and returns it as an 8 byte array.
 func Int64ToBytes(x int64) [8]byte {
 	var b [8]byte
 	b[0] = byte(x >> 56)
@@ -61,13 +64,19 @@ func Int64ToBytes(x int64) [8]byte {
 	return b
 }
 
+// Int64ToByteSlice takes an int64 and returns it as a slice of bytes.
 func Int64ToByteSlice(x int64) []byte {
 	b := Int64ToBytes(x)
 	return b[:]
 }
 
+// Duration is an alias for time.Duration
 type Duration time.Duration
 
+// UnmarshalJSON takes a slice of bytes and converts it to a duration.  An
+// error is returned if  the slice of bytes doesn't contain a value that can
+// be parsed into a duration.
+// returned.
 func (d *Duration) UnmarshalJSON(data []byte) error {
 	if len(data) == 0 {
 		*d = 0

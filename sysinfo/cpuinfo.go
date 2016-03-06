@@ -272,7 +272,9 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 	}
 }
 
-func UnmarshalCPUDatasToString(p []byte) string {
+// UnmarshalCPUDataToString takes a flatbuffers serialized []byte and returns
+// the bytes as a formatted string.
+func UnmarshalCPUDataToString(p []byte) string {
 	c := GetRootAsCPUData(p, 0)
 	return fmt.Sprintf("%s\t%s\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\t%0.2f\n", string(c.Timestamp()), string(c.CPUID()), float32(c.Usr())/100.0, float32(c.Nice())/100.0, float32(c.Sys())/100.0, float32(c.IOWait())/100.0, float32(c.IRQ())/100.0, float32(c.Soft())/100.0, float32(c.Steal())/100.0, float32(c.Guest())/100.0, float32(c.GNice())/100.0, float32(c.Idle())/100.0)
 }

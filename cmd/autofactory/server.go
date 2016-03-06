@@ -16,6 +16,8 @@ import (
 	"github.com/mohae/autofact/sysinfo"
 )
 
+// server is the container for a server's information and everything that it
+// is tracking/serving.
 type server struct {
 	// ID of the server
 	ID uint32
@@ -41,8 +43,8 @@ func newServer(id uint32) server {
 	}
 }
 
-// LoadInventory populates the inventory from the database.  This is a cached
-// list of clients we are aware of.
+// LoadInventory populates the server's inventory from the database.  This
+// is a cached list of clients.
 func (s *server) LoadInventory() (int, error) {
 	var n int
 	ids, err := s.DB.ClientIDs()
@@ -62,7 +64,9 @@ func (s *server) Client(id uint32) (*Client, bool) {
 	return s.Inventory.Client(id)
 }
 
-// NewClient creates a new client.
+// NewClient creates a new Client, adds it to the server's inventory and
+// returns the client to the caller.   If the save of the Client's info to
+// the database results in an error, it will be returned.
 func (s *server) NewClient() (*Client, error) {
 	// get a new client
 	cl := s.Inventory.NewClient()
@@ -71,7 +75,8 @@ func (s *server) NewClient() (*Client, error) {
 	return cl, err
 }
 
-// client holds the server side client info
+// Client holds the client's configuration, the websocket connection to the
+// client node, and its connection state.
 type Client struct {
 	ID uint32
 	client.Cfg
@@ -93,16 +98,20 @@ func newClient(id uint32) *Client {
 	}
 }
 
+// PingHandler is the handler for Pings.
 func (c *Client) PingHandler(msg string) error {
 	fmt.Printf("ping: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
 }
 
+// PongHandler is the handler for pongs.
 func (c *Client) PongHandler(msg string) error {
 	fmt.Printf("pong: %s\n", msg)
 	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
+// Listen listens for messages and handles them accordingly.  Binary messages
+// are expected to be  Flatbuffer serialized bytes containing a Message.
 func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
 	defer close(doneCh)
@@ -173,7 +182,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUData:
-		fmt.Println(sysinfo.UnmarshalCPUDatasToString(msg.DataBytes()))
+		fmt.Println(sysinfo.UnmarshalCPUDataToString(msg.DataBytes()))
 	case message.MemData:
 		fmt.Println(sysinfo.UnmarshalMemDataToString(msg.DataBytes()))
 	default:

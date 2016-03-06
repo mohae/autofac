@@ -33,6 +33,7 @@ func main() {
 	os.Exit(realMain())
 }
 
+// realMain is used to allow defers to run.
 func realMain() int {
 	flag.Parse()
 
