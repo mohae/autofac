@@ -196,7 +196,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"idle":   float32(cpu.Idle()) / 100.0,
 		}
 		// TODO: use the timestamp in the data instead of server time
-		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Now())
+		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Unix(0, cpu.Timestamp()).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	case message.MemData:
