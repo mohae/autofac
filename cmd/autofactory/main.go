@@ -33,10 +33,10 @@ func init() {
 	flag.StringVar(&influxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
 	flag.StringVar(&influxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
 	flag.StringVar(&influxAddress, "a", "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
-	flag.StringVar(&influxUser, "username", "perine", "the username of the InfluxDB user")
-	flag.StringVar(&influxUser, "u", "perine", "the username of the InfluxDB user (short)")
-	flag.StringVar(&influxPassword, "password", "statenatureofdefect", "the username of the InfluxDB user")
-	flag.StringVar(&influxPassword, "P", "statenatureofdefect", "the username of the InfluxDB user (short)")
+	flag.StringVar(&influxUser, "username", "autoadmin", "the username of the InfluxDB user")
+	flag.StringVar(&influxUser, "u", "autoadmin", "the username of the InfluxDB user (short)")
+	flag.StringVar(&influxPassword, "password", "thisisnotapassword", "the username of the InfluxDB user")
+	flag.StringVar(&influxPassword, "P", "thisisnotapassword", "the username of the InfluxDB user (short)")
 }
 
 func main() {
