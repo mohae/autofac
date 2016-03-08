@@ -12,17 +12,16 @@ import (
 	"github.com/mohae/autofact/client"
 )
 
+var srvr server
+
 var connCfg client.ConnCfg
 var clientCfg client.Cfg
 var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
-var srvr server
 var dbFile = flag.String("dbfile", "autofact.bdb", "location of the autofactory database file")
 var influxDBName string
 var influxUser string
 var influxPassword string
 var influxAddress string
-
-var clientCfgBytes []byte
 
 // flags
 func init() {
@@ -72,7 +71,7 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "error loading the client configuration file: %s\n", err)
 		return 1
 	}
-	clientCfgBytes = clientCfg.Serialize()
+	srvr.ClientCfg = clientCfg.Serialize()
 	// Ther server PingPeriod and PongWait should be the same as the clients
 	srvr.PingPeriod = clientCfg.PingPeriod
 	srvr.PongWait = clientCfg.PongWait

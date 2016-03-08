@@ -102,7 +102,7 @@ sendCfg:
 	cl.WS = c
 
 	// send the config
-	cl.WriteBinaryMessage(message.ClientCfg, clientCfgBytes)
+	cl.WriteBinaryMessage(message.ClientCfg, srvr.ClientCfg)
 
 	// set the ping hanlder
 	cl.WS.SetPingHandler(cl.PingHandler)

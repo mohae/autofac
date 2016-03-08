@@ -28,6 +28,8 @@ type server struct {
 	PingPeriod time.Duration
 	// How long to wait for a pong response before timing out
 	PongWait time.Duration
+	// Flatbuffers serialized default client config
+	ClientCfg []byte
 	// A map of clients, by ID
 	Inventory inventory
 	// TODO: add handling to prevent the same client from connecting
@@ -205,7 +207,6 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		}
 		// TODO: use the timestamp in the data instead of server time
 		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Now())
-
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	case message.MemData:
