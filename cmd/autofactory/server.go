@@ -7,7 +7,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
@@ -177,16 +176,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	bldr := flatbuffers.NewBuilder(0)
-	id := bldr.CreateByteVector(message.NewMessageID(c.ID))
-	d := bldr.CreateByteVector(p)
-	message.MessageStart(bldr)
-	message.MessageAddID(bldr, id)
-	message.MessageAddType(bldr, websocket.BinaryMessage)
-	message.MessageAddKind(bldr, k.Int16())
-	message.MessageAddData(bldr, d)
-	bldr.Finish(message.MessageEnd(bldr))
-	c.WS.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.ID, k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.

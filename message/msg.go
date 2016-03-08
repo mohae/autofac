@@ -4,6 +4,8 @@ import (
 	"encoding/binary"
 	"time"
 
+	"github.com/google/flatbuffers/go"
+	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact/util"
 )
 
@@ -36,4 +38,19 @@ func NewMessageID(source uint32) []byte {
 	id[14] = r[2]
 	id[15] = r[3]
 	return id
+}
+
+// Serialize creates a flatbuffer serialized message and returns the
+// bytes.
+func Serialize(ID uint32, k Kind, p []byte) []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	id := bldr.CreateByteVector(NewMessageID(ID))
+	d := bldr.CreateByteVector(p)
+	MessageStart(bldr)
+	MessageAddID(bldr, id)
+	MessageAddType(bldr, websocket.BinaryMessage)
+	MessageAddKind(bldr, k.Int16())
+	MessageAddData(bldr, d)
+	bldr.Finish(MessageEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
 }

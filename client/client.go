@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/message"
@@ -368,32 +367,14 @@ done:
 func (c *Client) SendData(kind message.Kind, data [][]byte) error {
 	// for each data, send a message
 	for _, v := range data {
-		bldr := flatbuffers.NewBuilder(0)
-		id := bldr.CreateByteVector(message.NewMessageID(c.ID))
-		d := bldr.CreateByteVector(v)
-		message.MessageStart(bldr)
-		message.MessageAddID(bldr, id)
-		message.MessageAddType(bldr, websocket.BinaryMessage)
-		message.MessageAddKind(bldr, kind.Int16())
-		message.MessageAddData(bldr, d)
-		bldr.Finish(message.MessageEnd(bldr))
-		c.SendB <- bldr.Bytes[bldr.Head():]
+		c.SendB <- message.Serialize(c.ID, kind, v)
 	}
 	return nil
 }
 
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	bldr := flatbuffers.NewBuilder(0)
-	id := bldr.CreateByteVector(message.NewMessageID(c.ID))
-	b := bldr.CreateByteVector(p)
-	message.MessageStart(bldr)
-	message.MessageAddID(bldr, id)
-	message.MessageAddType(bldr, websocket.BinaryMessage)
-	message.MessageAddKind(bldr, kind.Int16())
-	message.MessageAddData(bldr, b)
-	bldr.Finish(message.MessageEnd(bldr))
-	c.SendB <- bldr.Bytes[bldr.Head():]
+	c.SendB <- message.Serialize(c.ID, kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
