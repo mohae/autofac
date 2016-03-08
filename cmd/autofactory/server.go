@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
+	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/db"
@@ -34,6 +35,8 @@ type server struct {
 	// existing client vs an existing client maintaining multiple
 	// con-current connections
 	DB db.Bolt
+	// InfluxDB client
+	*InfluxClient
 }
 
 func newServer(id uint32) server {
@@ -53,10 +56,18 @@ func (s *server) LoadInventory() (int, error) {
 	}
 	for i, id := range ids {
 		c := newClient(id)
+		c.InfluxClient = s.InfluxClient
 		s.Inventory.AddClient(id, c)
 		n = i
 	}
 	return n, nil
+}
+
+// connects to InfluxDB
+func (s *server) connectToInfluxDB() error {
+	var err error
+	s.InfluxClient, err = newInfluxClient(influxDBName, influxAddress, influxUser, influxPassword)
+	return err
 }
 
 // Client checks the inventory to see if the client exists
@@ -70,6 +81,7 @@ func (s *server) Client(id uint32) (*Client, bool) {
 func (s *server) NewClient() (*Client, error) {
 	// get a new client
 	cl := s.Inventory.NewClient()
+	cl.InfluxClient = s.InfluxClient
 	// save the client info to the db
 	err := s.DB.SaveClient(cl.ID)
 	return cl, err
@@ -80,7 +92,8 @@ func (s *server) NewClient() (*Client, error) {
 type Client struct {
 	ID uint32
 	client.Cfg
-	WS          *websocket.Conn
+	WS *websocket.Conn
+	*InfluxClient
 	isConnected bool
 }
 
@@ -182,7 +195,19 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUData:
-		fmt.Println(sysinfo.UnmarshalCPUDataToString(msg.DataBytes()))
+		cpu := sysinfo.GetRootAsCPUData(msg.DataBytes(), 0)
+		tags := map[string]string{"cpu": "cpu-total"}
+		fields := map[string]interface{}{
+			"user":   float32(cpu.Usr()) / 100.0,
+			"sys":    float32(cpu.Sys()) / 100.0,
+			"iowait": float32(cpu.IOWait()) / 100.0,
+			"idle":   float32(cpu.Idle()) / 100.0,
+		}
+		// TODO: use the timestamp in the data instead of server time
+		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Now())
+
+		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		return nil
 	case message.MemData:
 		fmt.Println(sysinfo.UnmarshalMemDataToString(msg.DataBytes()))
 	default:

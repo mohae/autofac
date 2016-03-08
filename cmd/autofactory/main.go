@@ -17,8 +17,11 @@ var clientCfg client.Cfg
 var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
 var srvr server
 var dbFile = flag.String("dbfile", "autofact.bdb", "location of the autofactory database file")
+var influxDBName string
+var influxUser string
+var influxPassword string
+var influxAddress string
 
-// the serialized clientCfg
 var clientCfgBytes []byte
 
 // flags
@@ -27,6 +30,14 @@ func init() {
 	flag.StringVar(&connCfg.ServerPort, "p", "8675", "port to use for websockets (short)")
 	flag.StringVar(clientCfgFile, "c", "autofact-client.json", "location of client configuration file (short)")
 	flag.StringVar(dbFile, "d", "autofact.bdb", "location of the autfactory database file (short)")
+	flag.StringVar(&influxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
+	flag.StringVar(&influxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
+	flag.StringVar(&influxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
+	flag.StringVar(&influxAddress, "a", "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
+	flag.StringVar(&influxUser, "username", "perine", "the username of the InfluxDB user")
+	flag.StringVar(&influxUser, "u", "perine", "the username of the InfluxDB user (short)")
+	flag.StringVar(&influxPassword, "password", "statenatureofdefect", "the username of the InfluxDB user")
+	flag.StringVar(&influxPassword, "P", "statenatureofdefect", "the username of the InfluxDB user (short)")
 }
 
 func main() {
@@ -73,6 +84,16 @@ func realMain() int {
 		return 1
 	}
 	defer srvr.DB.DB.Close()
+
+	// connect to Influx
+	err = srvr.connectToInfluxDB()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error connecting to %s: %s", influxDBName, err)
+		return 1
+	}
+	// start the Influx writer
+	// TODO: influx writer should handle done channel signaling
+	go srvr.InfluxClient.Write()
 	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
 	fmt.Println(srvr.URL.String())
