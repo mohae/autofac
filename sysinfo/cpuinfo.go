@@ -153,7 +153,6 @@ func CPUDataTicker(interval time.Duration, outCh chan []byte) {
 	for {
 		select {
 		case <-ticker.C:
-			fmt.Println("ticker: gathering cpu stats")
 			cmd := exec.Command("mpstat", "-P", "ALL")
 			cmd.Stdout = &out
 			err := cmd.Run()

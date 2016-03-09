@@ -3,12 +3,12 @@ namespace sysinfo;
 
 table MemData {
 	Timestamp: long;
-	RAMTotal: long;
-	RAMUsed: long;
-	RAMFree: long;
-	RAMShared: long;
-	RAMBuffers: long;
-	RAMCached: long;
+	MemTotal: long;
+	MemUsed: long;
+	MemFree: long;
+	MemShared: long;
+	MemBuffers: long;
+	MemCached: long;
 	CacheUsed: long;
 	CacheFree: long;
 	SwapTotal: long;

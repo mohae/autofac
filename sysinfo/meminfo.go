@@ -75,17 +75,17 @@ func MemDataTicker(interval time.Duration, outCh chan []byte) {
 						i, _ = strconv.Atoi(string(fld[:ndx]))
 						switch fldNum {
 						case 0:
-							MemDataAddRAMTotal(bldr, int64(i))
+							MemDataAddMemTotal(bldr, int64(i))
 						case 1:
-							MemDataAddRAMUsed(bldr, int64(i))
+							MemDataAddMemUsed(bldr, int64(i))
 						case 2:
-							MemDataAddRAMFree(bldr, int64(i))
+							MemDataAddMemFree(bldr, int64(i))
 						case 3:
-							MemDataAddRAMShared(bldr, int64(i))
+							MemDataAddMemShared(bldr, int64(i))
 						case 4:
-							MemDataAddRAMBuffers(bldr, int64(i))
+							MemDataAddMemBuffers(bldr, int64(i))
 						case 5:
-							MemDataAddRAMCached(bldr, int64(i))
+							MemDataAddMemCached(bldr, int64(i))
 						case 6:
 							MemDataAddCacheUsed(bldr, int64(i))
 						case 7:
@@ -126,5 +126,5 @@ func MemDataTicker(interval time.Duration, outCh chan []byte) {
 // the data as a formatted string.
 func UnmarshalMemDataToString(p []byte) string {
 	m := GetRootAsMemData(p, 0)
-	return fmt.Sprintf("%d\n%d\t%d\t%d\t%d\t%d\t%d\n%d\t%d\n%d\t%d\t%d\n", m.Timestamp(), m.RAMTotal(), m.RAMUsed(), m.RAMFree(), m.RAMShared(), m.RAMBuffers(), m.RAMCached(), m.CacheUsed(), m.CacheFree(), m.SwapTotal(), m.SwapUsed(), m.SwapFree())
+	return fmt.Sprintf("%d\n%d\t%d\t%d\t%d\t%d\t%d\n%d\t%d\n%d\t%d\t%d\n", m.Timestamp(), m.MemTotal(), m.MemUsed(), m.MemFree(), m.MemShared(), m.MemBuffers(), m.MemCached(), m.CacheUsed(), m.CacheFree(), m.SwapTotal(), m.SwapUsed(), m.SwapFree())
 }
