@@ -15,9 +15,14 @@ func main() {
 }
 
 func realMain() int {
+	hostname, err := os.Hostname()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "unable to get hostname: %s", err)
+		return 1
+	}
 	// get a client
-	c := client.New(uint32(0))
-	err := c.ConnCfg.Load(cfgFile)
+	c := client.New(uint32(0), hostname)
+	err = c.ConnCfg.Load(cfgFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}

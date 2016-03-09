@@ -2,13 +2,13 @@ package client
 
 import (
 	"bytes"
-	"encoding/binary"
 	"fmt"
 	"net/url"
 	"os"
 	"sync"
 	"time"
 
+	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/message"
@@ -17,8 +17,9 @@ import (
 
 // Client is anything that talks to the server.
 type Client struct {
-	CPUData [][]byte `json:"cpu_stat"`
-	MemData [][]byte `json:"mem_data"`
+	Hostname string   `json:"-"`
+	CPUData  [][]byte `json:"cpu_stat"`
+	MemData  [][]byte `json:"mem_data"`
 	// Conn holds the configuration for connecting to the server.
 	ConnCfg `json:"-"`
 	// Cfg holds the client configuration (how the client behaves).
@@ -34,8 +35,9 @@ type Client struct {
 	ServerURL   url.URL `json:"-"`
 }
 
-func New(id uint32) *Client {
+func New(id uint32, name string) *Client {
 	return &Client{
+		Hostname: name,
 		ConnCfg: ConnCfg{
 			ID: id,
 		},
@@ -72,24 +74,24 @@ func (c *Client) Connect() bool {
 		time.Sleep(c.ConnectInterval)
 		fmt.Printf("unable to connect to the server %s: retrying...\n", c.ServerURL.String())
 	}
-	// Send the client's ID; if it's empty or can't be found, the server will
+	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
 	// respond with one.  Retry until the server responds, or until the
 	// reconnectPeriod has expired.
-	var err error
-	var typ int
-	var p []byte
-	b := make([]byte, 4)
-	if c.ID > 0 {
-		binary.LittleEndian.PutUint32(b, c.ID)
-	}
-	err = c.WS.WriteMessage(websocket.BinaryMessage, b)
+	bldr := flatbuffers.NewBuilder(0)
+	name := bldr.CreateString(c.Hostname)
+	ClientInfStart(bldr)
+	ClientInfAddID(bldr, c.ID)
+	ClientInfAddHostname(bldr, name)
+	bldr.Finish(ClientInfEnd(bldr))
+
+	err := c.WS.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		c.WS.Close()
 		return false
 	}
 
-	typ, p, err = c.WS.ReadMessage()
+	typ, p, err := c.WS.ReadMessage()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
 		c.WS.Close()
@@ -98,8 +100,9 @@ func (c *Client) Connect() bool {
 
 	switch typ {
 	case websocket.BinaryMessage:
-		// a binary response is a clientID
-		c.ID = binary.LittleEndian.Uint32(p[:4])
+		// a binary response is ClientInf
+		inf := GetRootAsClientInf(p, 0)
+		c.ID = inf.ID()
 		fmt.Printf("new ID: %d\n", c.ID)
 	case websocket.TextMessage:
 		fmt.Printf("%s\n", string(p))

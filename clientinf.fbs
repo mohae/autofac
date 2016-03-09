@@ -1,0 +1,9 @@
+// clientinf.fbs
+namespace client;
+
+table ClientInf {
+	ID:uint;
+    Hostname:string;
+}
+
+root_type ClientInf;

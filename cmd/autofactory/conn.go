@@ -1,13 +1,14 @@
 package main
 
 import (
-	"encoding/binary"
 	"fmt"
 	"net/http"
 	"os"
 
+	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/message"
 )
 
@@ -30,7 +31,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 	defer c.Close()
 	// first message is the clientID, if "" then get a new one
-	typ, b, err := c.ReadMessage()
+	typ, p, err := c.ReadMessage()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 		return
@@ -44,14 +45,9 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	var cl *Client
 	var msg string
 	var ok, isNew bool
-	// decode the byte (should be len 4); if something else, reject
-	if len(b) != 4 {
-		c.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request: malformed ID"))
-		fmt.Fprintf(os.Stderr, "invalid socket initiation request: malformed ID\n")
-		return
-	}
-	id := binary.LittleEndian.Uint32(b)
-	if id == 0 {
+	// the bytes are ClientInf
+	inf := client.GetRootAsClientInf(p, 0)
+	if inf.ID() == 0 {
 		isNew = true
 		// get a new client and its ID
 		cl, err = srvr.NewClient()
@@ -59,18 +55,23 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
+		cl.Hostname = string(inf.Hostname())
 		fmt.Printf("new ID: %d\n", cl.ID)
-		id := make([]byte, 4)
-		binary.LittleEndian.PutUint32(id, cl.ID)
-		err = c.WriteMessage(websocket.BinaryMessage, id)
+		bldr := flatbuffers.NewBuilder(0)
+		name := bldr.CreateString(cl.Hostname)
+		client.ClientInfStart(bldr)
+		client.ClientInfAddID(bldr, cl.ID)
+		client.ClientInfAddHostname(bldr, name)
+		bldr.Finish(client.ClientInfEnd(bldr))
+		err = c.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing new client ID: %s\n", err)
 		}
 		goto sendCfg
 	}
 
-	msg = fmt.Sprintf("welcome back %X\n", id)
-	cl, ok = srvr.Client(id)
+	msg = fmt.Sprintf("welcome back %X\n", inf.ID())
+	cl, ok = srvr.Client(inf.ID())
 	if !ok {
 		isNew = true
 		cl, err = srvr.NewClient()
@@ -78,15 +79,18 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
-		// send the new client ID
-		b := make([]byte, 4)
-		binary.LittleEndian.PutUint32(b, cl.ID)
-		err = c.WriteMessage(websocket.BinaryMessage, b)
+		bldr := flatbuffers.NewBuilder(0)
+		name := bldr.CreateString(cl.Hostname)
+		client.ClientInfStart(bldr)
+		client.ClientInfAddID(bldr, cl.ID)
+		client.ClientInfAddHostname(bldr, name)
+		bldr.Finish(client.ClientInfEnd(bldr))
+		err = c.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", cl.ID, err)
 			return
 		}
-		msg = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", b, cl.ID)
+		msg = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", inf.ID(), cl.ID)
 	}
 	// send the welcome message
 	err = c.WriteMessage(websocket.TextMessage, []byte(msg))

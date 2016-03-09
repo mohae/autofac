@@ -56,13 +56,13 @@ func (i *inventory) Client(id uint32) (*Client, bool) {
 
 // NewClient returns a new Client.  The Client will have its ID set to a
 // unique value.
-func (i *inventory) NewClient() *Client {
+func (i *inventory) NewClient(name string) *Client {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	for {
 		id := util.RandUint32()
 		if !i.clientExists(id) {
-			c := newClient(id)
+			c := newClient(id, name)
 			i.clients[id] = c
 			return c
 		}

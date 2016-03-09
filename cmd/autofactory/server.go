@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -52,12 +51,11 @@ func newServer(id uint32) server {
 // is a cached list of clients.
 func (s *server) LoadInventory() (int, error) {
 	var n int
-	ids, err := s.DB.ClientIDs()
+	clients, err := s.DB.Clients()
 	if err != nil {
 		return n, err
 	}
-	for i, id := range ids {
-		c := newClient(id)
+	for i, c := range clients {
 		c.InfluxClient = s.InfluxClient
 		s.Inventory.AddClient(id, c)
 		n = i
@@ -91,22 +89,23 @@ func (s *server) NewClient() (*Client, error) {
 
 // Client holds the client's configuration, the websocket connection to the
 // client node, and its connection state.
+// TODO: should there be some reconciliation between this and client.ClientInf?
 type Client struct {
-	ID     uint32
-	Name   string
-	Region string
-	client.Cfg
-	WS *websocket.Conn
-	*InfluxClient
-	isConnected bool
+	ID            uint32 `json:"id"`
+	Hostname      string `json:"hostname"`
+	Region        string `json:"region"`
+	client.Cfg    `json:"-"`
+	WS            *websocket.Conn `json:"-"`
+	*InfluxClient `json:"-"`
+	isConnected   bool
 }
 
 // TODO: add region support (hardcoded for now for dev purposes)
-func newClient(id uint32) *Client {
+func newClient(id uint32, name string) *Client {
 	return &Client{
-		ID:     id,
-		Name:   strconv.FormatUint(uint64(id), 10),
-		Region: "region1",
+		ID:       id,
+		Hostname: name,
+		Region:   "region1",
 		Cfg: client.Cfg{
 			HealthbeatInterval:   clientCfg.HealthbeatInterval,
 			HealthbeatPushPeriod: clientCfg.HealthbeatPushPeriod,
@@ -194,7 +193,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	switch k {
 	case message.CPUData:
 		cpu := sysinfo.GetRootAsCPUData(msg.DataBytes(), 0)
-		tags := map[string]string{"host": c.Name, "region": c.Region, "cpu": string(cpu.CPUID())}
+		tags := map[string]string{"host": c.Hostname, "region": c.Region, "cpu": string(cpu.CPUID())}
 		fields := map[string]interface{}{
 			"user":   float32(cpu.Usr()) / 100.0,
 			"sys":    float32(cpu.Sys()) / 100.0,
@@ -206,7 +205,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		return nil
 	case message.MemData:
 		mem := sysinfo.GetRootAsMemData(msg.DataBytes(), 0)
-		tags := map[string]string{"client": c.Name, "region": c.Region}
+		tags := map[string]string{"client": c.Hostname, "region": c.Region}
 		fields := map[string]interface{}{
 			"mem-total":   float32(mem.MemTotal()) / 100.0,
 			"mem-used":    float32(mem.MemUsed()) / 100.0,
