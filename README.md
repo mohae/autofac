@@ -13,6 +13,28 @@ Things may change as I try things out.
 
 At this point in time, nothing is encrypted and `ws` is being used so definitely don't use this where communcations will go over public networks.
 
+Currently, only Linux systems are supported and this has only been tested on Debian Jessie.
+
+## Dependencies
+[InfluxDB](https://influxdata.com/) is used to store the facts.  Currently, it is assumed that InfluxDB is on the localhost and listening on port `8086`.
+
+To install follow the instructions: https://influxdata.com/downloads/.
+
+Once installed, the database and database user need to be created:
+
+```
+$ influx
+Visit https://enterprise.influxdata.com to register for updates, InfluxDB server management, and monitoring.
+Connected to http://localhost:8086 version 0.10.2
+InfluxDB shell 0.10.2
+> create user autoadmin with password 'thisisnotapassword'
+> grant all privileges to autoadmin
+> create database autofacts
+> quit
+```
+
+Use the graph and dashboard builder of your choice: (Grafana)[http://grafana.org/] is one option.
+
 ## autofactory
 Autoctory is the server.  By default, it listens on `:8675` and processes incoming messages, sending responses to the client as appropriate.  Generally, this means printing out what the client sent.  In the future it will probably do something with the received messages.
 
@@ -29,9 +51,15 @@ A client does not maintain any information about how it should operate, the serv
 
 Most messages are sent as binary messages with the message payload being a bunch of bytes serialized with flatbuffers.
 
+## Notes
+The ClientID is used as the Client Name.  In the future the client's `hostname` should be used.
+
+The Region is hardcoded as region isn't yet implemented.
+
 ## TODO
 
 * Persist buffered data on the client side until the data has been sent.
 * Add message id to the ack message.
 * Track message sent vs ack'd.
-* 
+* Use `hostname` as the Client's name.
+* Add Region support.
