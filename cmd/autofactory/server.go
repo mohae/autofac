@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -91,16 +92,21 @@ func (s *server) NewClient() (*Client, error) {
 // Client holds the client's configuration, the websocket connection to the
 // client node, and its connection state.
 type Client struct {
-	ID uint32
+	ID     uint32
+	Name   string
+	Region string
 	client.Cfg
 	WS *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
 
+// TODO: add region support (hardcoded for now for dev purposes)
 func newClient(id uint32) *Client {
 	return &Client{
-		ID: id,
+		ID:     id,
+		Name:   strconv.FormatUint(uint64(id), 10),
+		Region: "region1",
 		Cfg: client.Cfg{
 			HealthbeatInterval:   clientCfg.HealthbeatInterval,
 			HealthbeatPushPeriod: clientCfg.HealthbeatPushPeriod,
@@ -188,19 +194,34 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	switch k {
 	case message.CPUData:
 		cpu := sysinfo.GetRootAsCPUData(msg.DataBytes(), 0)
-		tags := map[string]string{"cpu": "cpu-total"}
+		tags := map[string]string{"host": c.Name, "region": c.Region, "cpu": string(cpu.CPUID())}
 		fields := map[string]interface{}{
 			"user":   float32(cpu.Usr()) / 100.0,
 			"sys":    float32(cpu.Sys()) / 100.0,
 			"iowait": float32(cpu.IOWait()) / 100.0,
 			"idle":   float32(cpu.Idle()) / 100.0,
 		}
-		// TODO: use the timestamp in the data instead of server time
 		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Unix(0, cpu.Timestamp()).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	case message.MemData:
-		fmt.Println(sysinfo.UnmarshalMemDataToString(msg.DataBytes()))
+		mem := sysinfo.GetRootAsMemData(msg.DataBytes(), 0)
+		tags := map[string]string{"client": c.Name, "region": c.Region}
+		fields := map[string]interface{}{
+			"mem-total":   float32(mem.MemTotal()) / 100.0,
+			"mem-used":    float32(mem.MemUsed()) / 100.0,
+			"mem-free":    float32(mem.MemFree()) / 100.0,
+			"mem-shared":  float32(mem.MemShared()) / 100.0,
+			"mem-buffers": float32(mem.MemBuffers()) / 100.0,
+			"cache-used":  float32(mem.CacheUsed()) / 100.0,
+			"cache-free":  float32(mem.CacheFree()) / 100.0,
+			"swap-total":  float32(mem.SwapTotal()) / 100.0,
+			"swap-used":   float32(mem.SwapUsed()) / 100.0,
+			"swap-free":   float32(mem.SwapFree()) / 100.0,
+		}
+		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, mem.Timestamp()).UTC())
+		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		return nil
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))
