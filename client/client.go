@@ -22,23 +22,23 @@ type Client struct {
 	// This is Inf as bytes: this is hopefully unnecessary, but I don't know at this point.
 	InfBytes []byte
 	// Conn holds the configuration for connecting to the server.
-	ConnCfg `json:"-"`
+	ConnCfg
 	// Cfg holds the client configuration (how the client behaves).
-	Cfg `json:"-"`
+	Cfg
 
 	// Healthbeat buffers
-	CPUData [][]byte `json:"cpu_stat"`
-	MemData [][]byte `json:"mem_data"`
+	CPUData [][]byte
+	MemData [][]byte
 
 	muSend sync.Mutex
-	WS     *websocket.Conn `json:"-"`
+	WS     *websocket.Conn
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
-	SendB       chan []byte `json:"-"`
-	SendStr     chan string `json:"-"`
+	SendB       chan []byte
+	SendStr     chan string
 	mu          sync.Mutex
 	isConnected bool
-	ServerURL   url.URL `json:"-"`
+	ServerURL   url.URL
 }
 
 func New(id uint32, name string) *Client {
