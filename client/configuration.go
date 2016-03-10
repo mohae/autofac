@@ -66,59 +66,6 @@ func (c *ConnCfg) Save() error {
 	return nil
 }
 
-/*
-// Cfg defines the client behavior, outside of connections.  This is
-// not persisted on the client.  The client, after connecting, gets its
-// configuration from the server.
-//
-// The server can have a client configuration that defines the standard
-// configuration of clients.  Support for client specific settings will be
-// added in the future.
-type Cfg struct {
-	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
-	HealthbeatInterval      time.Duration `json:"-"`
-	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
-	HealthbeatPushPeriod    time.Duration `json:"-"`
-	RawPingPeriod           string        `json:"ping_period"`
-	PingPeriod              time.Duration `json:"-"`
-	RawPongWait             string        `json:"pong_wait"`
-	PongWait                time.Duration `json:"-"`
-	RawSaveInterval         string        `json:"save_interval"`
-	SaveInterval            time.Duration `json:"-"`
-	WriteWait               time.Duration `json:"-"`
-}
-
-// LoadClientCfg loads the client configuration from the specified file.
-func (c *Cfg) Load(cfgFile string) error {
-	b, err := ioutil.ReadFile(cfgFile)
-	err = json.Unmarshal(b, c)
-	if err != nil {
-		return fmt.Errorf("error unmarshaling client cfg file %s: %s", cfgFile, err)
-	}
-	c.HealthbeatInterval, err = time.ParseDuration(c.RawHealthbeatInterval)
-	if err != nil {
-		return fmt.Errorf("error parsing healthbeat interval: %s", err)
-	}
-	c.HealthbeatPushPeriod, err = time.ParseDuration(c.RawHealthbeatPushPeriod)
-	if err != nil {
-		return fmt.Errorf("error parsing healthbeat push period %s", err)
-	}
-	c.SaveInterval, err = time.ParseDuration(c.RawSaveInterval)
-	if err != nil {
-		return fmt.Errorf("error parsing save interval %s", err)
-	}
-	c.PingPeriod, err = time.ParseDuration(c.RawPingPeriod)
-	if err != nil {
-		return fmt.Errorf("error parsing ping period %s", err)
-	}
-	c.PongWait, err = time.ParseDuration(c.RawPongWait)
-	if err != nil {
-		return fmt.Errorf("error parsing pong wait %s", err)
-	}
-	return nil
-}
-*/
-
 // Serialize serializes the struct.  The flatbuffers definition for this
 // struct is in clientconf.fbs and the resulting definition is in
 // client/ClientConf.go
