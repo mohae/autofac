@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/boltdb/bolt"
+	"github.com/mohae/autofact/client"
 )
 
 // Error is an error struct for database operations
@@ -70,8 +71,6 @@ func (b *Bolt) CreateBuckets() error {
 }
 
 // ClientIDs returns all ClientIDs within the database.
-// TODO: for now, it is a slice of strings, in the future it should be a
-// slice of clients.
 func (b *Bolt) ClientIDs() ([]uint32, error) {
 	var ids []uint32
 	err := b.DB.View(func(tx *bolt.Tx) error {
@@ -91,17 +90,33 @@ func (b *Bolt) ClientIDs() ([]uint32, error) {
 	return ids, err
 }
 
-// SaveClient saves a client in the client bucket.
-// TODO: For now, the ID is also saved as the value.  Change the func sig and
-// save data when appropriate.
-func (b *Bolt) SaveClient(id uint32) error {
+// Clients returns all the client.Infs within the database.
+func (b *Bolt) Clients() ([]*client.Inf, error) {
+	var clients []*client.Inf
+	err := b.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(Client.String()))
+		if b == nil {
+			return Error{fmt.Sprintf("get %s bucket", Client), errors.New("does not exist")}
+		}
+		c := b.Cursor()
+		// each value is a serialized client.Inf
+		for k, v := c.First(); k != nil; k, v = c.Next() {
+			clients = append(clients, client.GetRootAsInf(v, 0))
+		}
+		return nil
+	})
+	return clients, err
+}
+
+// SaveClientInf saves a client.Inf in the client bucket.
+func (b *Bolt) SaveClientInf(c *client.Inf) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		bid := make([]byte, 4)
-		binary.LittleEndian.PutUint32(bid, id)
-		err := b.Put(bid, bid)
+		binary.LittleEndian.PutUint32(bid, c.ID())
+		err := b.Put(bid, c.Serialize())
 		if err != nil {
-			return Error{fmt.Sprintf("save client %d", id), err}
+			return Error{fmt.Sprintf("save client %d", c.ID()), err}
 		}
 		return nil
 	})

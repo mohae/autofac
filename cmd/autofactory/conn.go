@@ -42,60 +42,80 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
-	var cl *Client
+	var n *Node
 	var msg string
 	var ok, isNew bool
 	// the bytes are ClientInf
-	inf := client.GetRootAsClientInf(p, 0)
+	inf := client.GetRootAsInf(p, 0)
 	if inf.ID() == 0 {
 		isNew = true
 		// get a new client and its ID
-		cl, err = srvr.NewClient()
+		n, err = srvr.NewNode()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
-		cl.Hostname = string(inf.Hostname())
-		fmt.Printf("new ID: %d\n", cl.ID)
+		fmt.Printf("new ID: %d\n", n.Inf.ID())
+		// sync the client's info with the new Node's
+		// TODO: revisit when region/zone/dc is better implemented. i.e.
+		// the client probably won't have this info on first connect, will it?
 		bldr := flatbuffers.NewBuilder(0)
-		name := bldr.CreateString(cl.Hostname)
-		client.ClientInfStart(bldr)
-		client.ClientInfAddID(bldr, cl.ID)
-		client.ClientInfAddHostname(bldr, name)
-		bldr.Finish(client.ClientInfEnd(bldr))
-		err = c.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
+		h := bldr.CreateByteString(inf.Hostname())
+		r := bldr.CreateByteString(inf.Region())
+		z := bldr.CreateByteString(inf.Zone())
+		d := bldr.CreateByteString(inf.DC())
+		client.InfStart(bldr)
+		client.InfAddID(bldr, n.Inf.ID())
+		client.InfAddHostname(bldr, h)
+		client.InfAddRegion(bldr, r)
+		client.InfAddZone(bldr, z)
+		client.InfAddDC(bldr, d)
+		bldr.Finish(client.InfEnd(bldr))
+		b := bldr.Bytes[bldr.Head():]
+		err = c.WriteMessage(websocket.BinaryMessage, b)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error writing new client ID: %s\n", err)
 		}
+		n.Inf = client.GetRootAsInf(b, 0)
+		// save the updated inf to the inventory
+		srvr.Inventory.AddNodeInf(n.Inf.ID(), n.Inf)
 		goto sendCfg
 	}
 
 	msg = fmt.Sprintf("welcome back %X\n", inf.ID())
-	cl, ok = srvr.Client(inf.ID())
+	n, ok = srvr.Node(inf.ID())
 	if !ok {
 		isNew = true
-		cl, err = srvr.NewClient()
+		n, err = srvr.NewNode()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
 		bldr := flatbuffers.NewBuilder(0)
-		name := bldr.CreateString(cl.Hostname)
-		client.ClientInfStart(bldr)
-		client.ClientInfAddID(bldr, cl.ID)
-		client.ClientInfAddHostname(bldr, name)
-		bldr.Finish(client.ClientInfEnd(bldr))
-		err = c.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
+		h := bldr.CreateByteString(inf.Hostname())
+		r := bldr.CreateByteString(inf.Region())
+		z := bldr.CreateByteString(inf.Zone())
+		d := bldr.CreateByteString(inf.DC())
+		client.InfStart(bldr)
+		client.InfAddID(bldr, n.Inf.ID())
+		client.InfAddHostname(bldr, h)
+		client.InfAddRegion(bldr, r)
+		client.InfAddZone(bldr, z)
+		client.InfAddDC(bldr, d)
+		bldr.Finish(client.InfEnd(bldr))
+		b := bldr.Bytes[bldr.Head():]
+		n.Inf = client.GetRootAsInf(b, 0)
+		err = c.WriteMessage(websocket.BinaryMessage, b)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", cl.ID, err)
+			fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", n.Inf.ID(), err)
 			return
 		}
-		msg = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", inf.ID(), cl.ID)
+		msg = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", inf.ID(), n.Inf.ID())
 	}
 	// send the welcome message
 	err = c.WriteMessage(websocket.TextMessage, []byte(msg))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing welcome message for %X: %s\n", cl.ID, err)
+		fmt.Fprintf(os.Stderr, "error writing welcome message for %X: %s\n", n.Inf.ID(), err)
 		return
 	}
 
@@ -103,17 +123,17 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 sendCfg:
 	_ = isNew
 	// the client needs the current connection
-	cl.WS = c
+	n.WS = c
 
 	// send the config
-	cl.WriteBinaryMessage(message.ClientCfg, srvr.ClientCfg)
+	n.WriteBinaryMessage(message.ClientCfg, srvr.ClientCfg)
 
 	// set the ping hanlder
-	cl.WS.SetPingHandler(cl.PingHandler)
-	cl.WS.SetPingHandler(cl.PongHandler)
+	n.WS.SetPingHandler(n.PingHandler)
+	n.WS.SetPingHandler(n.PongHandler)
 	// start a message handler for the client
 	doneCh := make(chan struct{})
-	go cl.Listen(doneCh)
+	go n.Listen(doneCh)
 
 	// wait for the done signal
 	<-doneCh

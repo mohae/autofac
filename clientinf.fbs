@@ -1,9 +1,12 @@
 // clientinf.fbs
 namespace client;
 
-table ClientInf {
+table Inf {
 	ID:uint;
     Hostname:string;
+	Region:string;
+	Zone:string;
+	DC:string;
 }
 
-root_type ClientInf;
+root_type Inf;

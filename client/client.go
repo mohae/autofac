@@ -17,13 +17,19 @@ import (
 
 // Client is anything that talks to the server.
 type Client struct {
-	Hostname string   `json:"-"`
-	CPUData  [][]byte `json:"cpu_stat"`
-	MemData  [][]byte `json:"mem_data"`
+	// Inf holds the basic client information.
+	*Inf
+	// This is Inf as bytes: this is hopefully unnecessary, but I don't know at this point.
+	InfBytes []byte
 	// Conn holds the configuration for connecting to the server.
 	ConnCfg `json:"-"`
 	// Cfg holds the client configuration (how the client behaves).
-	Cfg    `json:"-"`
+	Cfg `json:"-"`
+
+	// Healthbeat buffers
+	CPUData [][]byte `json:"cpu_stat"`
+	MemData [][]byte `json:"mem_data"`
+
 	muSend sync.Mutex
 	WS     *websocket.Conn `json:"-"`
 	// Channel for outbound binary messages.  The message is assumed to be a
@@ -36,11 +42,15 @@ type Client struct {
 }
 
 func New(id uint32, name string) *Client {
+	bldr := flatbuffers.NewBuilder(0)
+	n := bldr.CreateString(name)
+	InfStart(bldr)
+	InfAddID(bldr, id)
+	InfAddHostname(bldr, n)
+	bldr.Finish(InfEnd(bldr))
 	return &Client{
-		Hostname: name,
-		ConnCfg: ConnCfg{
-			ID: id,
-		},
+		Inf:      GetRootAsInf(bldr.Bytes[bldr.Head():], 0),
+		InfBytes: bldr.Bytes[bldr.Head():],
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
@@ -77,14 +87,7 @@ func (c *Client) Connect() bool {
 	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
 	// respond with one.  Retry until the server responds, or until the
 	// reconnectPeriod has expired.
-	bldr := flatbuffers.NewBuilder(0)
-	name := bldr.CreateString(c.Hostname)
-	ClientInfStart(bldr)
-	ClientInfAddID(bldr, c.ID)
-	ClientInfAddHostname(bldr, name)
-	bldr.Finish(ClientInfEnd(bldr))
-
-	err := c.WS.WriteMessage(websocket.BinaryMessage, bldr.Bytes[bldr.Head():])
+	err := c.WS.WriteMessage(websocket.BinaryMessage, c.InfBytes)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		c.WS.Close()
@@ -101,9 +104,9 @@ func (c *Client) Connect() bool {
 	switch typ {
 	case websocket.BinaryMessage:
 		// a binary response is ClientInf
-		inf := GetRootAsClientInf(p, 0)
-		c.ID = inf.ID()
-		fmt.Printf("new ID: %d\n", c.ID)
+		c.Inf = GetRootAsInf(p, 0)
+		c.InfBytes = p
+		fmt.Printf("new ID: %d\n", c.Inf.ID())
 	case websocket.TextMessage:
 		fmt.Printf("%s\n", string(p))
 	default:
@@ -370,14 +373,14 @@ done:
 func (c *Client) SendData(kind message.Kind, data [][]byte) error {
 	// for each data, send a message
 	for _, v := range data {
-		c.SendB <- message.Serialize(c.ID, kind, v)
+		c.SendB <- message.Serialize(c.Inf.ID(), kind, v)
 	}
 	return nil
 }
 
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.SendB <- message.Serialize(c.ID, kind, p)
+	c.SendB <- message.Serialize(c.Inf.ID(), kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -394,4 +397,21 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		fmt.Println(string(p))
 	}
 	return nil
+}
+
+// Serialize serializes the Inf using flatbuffers and returns the []byte.
+func (i *Inf) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	h := bldr.CreateByteString(i.Hostname())
+	r := bldr.CreateByteString(i.Region())
+	z := bldr.CreateByteString(i.Zone())
+	d := bldr.CreateByteString(i.DC())
+	InfStart(bldr)
+	InfAddID(bldr, i.ID())
+	InfAddHostname(bldr, h)
+	InfAddRegion(bldr, r)
+	InfAddZone(bldr, z)
+	InfAddDC(bldr, d)
+	bldr.Finish(InfEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
 }

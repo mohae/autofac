@@ -13,7 +13,6 @@ import (
 // ConnCfg holds the connection information for a node.  This is all that is
 // persisted on a client node.
 type ConnCfg struct {
-	ID                 uint32        `json:"id"`
 	ServerAddress      string        `json:"server_address"`
 	ServerPort         string        `json:"server_port"`
 	ServerID           uint32        `json:"server_id"`
