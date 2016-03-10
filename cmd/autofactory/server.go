@@ -212,7 +212,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 			"iowait": float32(cpu.IOWait()) / 100.0,
 			"idle":   float32(cpu.Idle()) / 100.0,
 		}
-		pt, err := influx.NewPoint("cpu_usage", tags, fields, time.Unix(0, cpu.Timestamp()).UTC())
+		pt, err := influx.NewPoint("cpu", tags, fields, time.Unix(0, cpu.Timestamp()).UTC())
 		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	case message.MemData:

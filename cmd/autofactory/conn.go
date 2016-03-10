@@ -122,9 +122,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	// TODO: for existing client, send the cfg from the hydrated info
 sendCfg:
 	_ = isNew
-	// the client needs the current connection
+	// the node needs the current connection
 	n.WS = c
-
 	// send the config
 	n.WriteBinaryMessage(message.ClientCfg, srvr.ClientCfg)
 
