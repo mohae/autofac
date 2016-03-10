@@ -33,7 +33,7 @@ InfluxDB shell 0.10.2
 > quit
 ```
 
-Use the graph and dashboard builder of your choice: (Grafana)[http://grafana.org/] is one option.
+Use the graph and dashboard builder of your choice: [Grafana](http://grafana.org/) is one option.
 
 ## autofactory
 Autoctory is the server.  By default, it listens on `:8675` and processes incoming messages, sending responses to the client as appropriate.  Generally, this means printing out what the client sent.  In the future it will probably do something with the received messages.
