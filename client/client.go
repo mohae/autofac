@@ -146,6 +146,7 @@ func (c *Client) DialServer() error {
 }
 
 func (c *Client) MessageWriter(doneCh chan struct{}) {
+	pingPeriod := time.Duration(c.Cfg.PingPeriod())
 	defer close(doneCh)
 	for {
 		select {
@@ -162,7 +163,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 			}
-		case <-time.After(c.Cfg.PingPeriod):
+		case <-time.After(pingPeriod):
 			// only ping if we are connected
 			if !c.IsConnected() {
 				continue
@@ -329,14 +330,14 @@ func (c *Client) FlushMemData() [][]byte {
 
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
-	if c.Cfg.HealthbeatInterval == 0 {
+	if c.Cfg.HealthbeatInterval() == 0 {
 		return
 	}
 	cpuCh := make(chan []byte)
 	memCh := make(chan []byte)
-	go sysinfo.CPUDataTicker(c.Cfg.HealthbeatInterval, cpuCh)
-	go sysinfo.MemDataTicker(c.Cfg.HealthbeatInterval, memCh)
-	t := time.NewTicker(c.Cfg.HealthbeatPushPeriod)
+	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
+	go sysinfo.MemDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh)
+	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {

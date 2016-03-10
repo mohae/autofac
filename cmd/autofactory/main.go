@@ -15,7 +15,10 @@ import (
 var srvr server
 
 var connCfg client.ConnCfg
-var clientCfg client.Cfg
+
+// the serialized default client.Cfg.  The data is originally loaded from the
+// server's ClientCfg file, which is specified by clientCfgFile.
+var clientCfg []byte
 var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
 var dbFile = flag.String("dbfile", "autofact.bdb", "location of the autofactory database file")
 var influxDBName string
@@ -66,15 +69,17 @@ func realMain() int {
 	srvr = newServer(v)
 
 	// load the default client cfg
-	err := clientCfg.Load(*clientCfgFile)
+	var cCfg ClientCfg
+	err := cCfg.Load(*clientCfgFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error loading the client configuration file: %s\n", err)
 		return 1
 	}
-	srvr.ClientCfg = clientCfg.Serialize()
+	clientCfg = cCfg.Serialize()
+	srvr.ClientCfg = clientCfg
 	// Ther server PingPeriod and PongWait should be the same as the clients
-	srvr.PingPeriod = clientCfg.PingPeriod
-	srvr.PongWait = clientCfg.PongWait
+	srvr.PingPeriod = cCfg.PingPeriod
+	srvr.PongWait = cCfg.PongWait
 
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open("autofact.bdb")

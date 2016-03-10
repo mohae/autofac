@@ -66,6 +66,7 @@ func (c *ConnCfg) Save() error {
 	return nil
 }
 
+/*
 // Cfg defines the client behavior, outside of connections.  This is
 // not persisted on the client.  The client, after connecting, gets its
 // configuration from the server.
@@ -116,30 +117,24 @@ func (c *Cfg) Load(cfgFile string) error {
 	}
 	return nil
 }
+*/
 
 // Serialize serializes the struct.  The flatbuffers definition for this
 // struct is in clientconf.fbs and the resulting definition is in
 // client/ClientConf.go
 func (c *Cfg) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	ClientConfStart(bldr)
-	ClientConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	ClientConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	ClientConfAddPingPeriod(bldr, int64(c.PingPeriod))
-	ClientConfAddPongWait(bldr, int64(c.PongWait))
-	ClientConfAddSaveInterval(bldr, int64(c.SaveInterval))
-	bldr.Finish(ClientConfEnd(bldr))
+	CfgStart(bldr)
+	CfgAddHealthbeatInterval(bldr, c.HealthbeatInterval())
+	CfgAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
+	CfgAddPingPeriod(bldr, c.PingPeriod())
+	CfgAddPongWait(bldr, c.PongWait())
+	CfgAddSaveInterval(bldr, c.SaveInterval())
+	bldr.Finish(CfgEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Deserialize deserializes the bytes into the struct.  The flatbuffers
-// definition for this struct is in clientconf.fbs and the resulting
-// definition is in client/ClientConf.go
+// Deserialize deserializes the bytes into the current Cfg.
 func (c *Cfg) Deserialize(p []byte) {
-	conf := GetRootAsClientConf(p, 0)
-	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
-	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
-	c.PingPeriod = time.Duration(conf.PingPeriod())
-	c.PongWait = time.Duration(conf.PongWait())
-	c.SaveInterval = time.Duration(conf.SaveInterval())
+	c = GetRootAsCfg(p, 0)
 }

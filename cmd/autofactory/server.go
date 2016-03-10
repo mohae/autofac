@@ -2,7 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"os"
 	"time"
@@ -79,14 +81,7 @@ func (s *server) Node(id uint32) (*Node, bool) {
 	}
 	return &Node{
 		Inf: inf,
-		Cfg: &client.Cfg{
-			HealthbeatInterval:   clientCfg.HealthbeatInterval,
-			HealthbeatPushPeriod: clientCfg.HealthbeatPushPeriod,
-			PingPeriod:           clientCfg.PingPeriod,
-			PongWait:             clientCfg.PongWait,
-			SaveInterval:         clientCfg.SaveInterval,
-			WriteWait:            clientCfg.WriteWait,
-		},
+		Cfg: client.GetRootAsCfg(clientCfg, 0),
 	}, true
 }
 
@@ -118,14 +113,7 @@ func newNode(id uint32) *Node {
 	bldr.Finish(client.InfEnd(bldr))
 	return &Node{
 		Inf: client.GetRootAsInf(bldr.Bytes[bldr.Head():], 0),
-		Cfg: &client.Cfg{
-			HealthbeatInterval:   clientCfg.HealthbeatInterval,
-			HealthbeatPushPeriod: clientCfg.HealthbeatPushPeriod,
-			PingPeriod:           clientCfg.PingPeriod,
-			PongWait:             clientCfg.PongWait,
-			SaveInterval:         clientCfg.SaveInterval,
-			WriteWait:            clientCfg.WriteWait,
-		},
+		Cfg: client.GetRootAsCfg(clientCfg, 0),
 	}
 }
 
@@ -238,4 +226,79 @@ func (n *Node) processBinaryMessage(p []byte) error {
 		fmt.Println(string(p))
 	}
 	return nil
+}
+
+// ClientCfg defines the client behavior, outside of connections.  This
+// is serverside only and for loading the default clientCfg from a file.
+// All communication of cfg data between Server and Client (Node) is done
+// with Flatbuffers serialized client.Cfg.
+type ClientCfg struct {
+	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
+	HealthbeatInterval      time.Duration `json:"-"`
+	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
+	HealthbeatPushPeriod    time.Duration `json:"-"`
+	RawPingPeriod           string        `json:"ping_period"`
+	PingPeriod              time.Duration `json:"-"`
+	RawPongWait             string        `json:"pong_wait"`
+	PongWait                time.Duration `json:"-"`
+	RawSaveInterval         string        `json:"save_interval"`
+	SaveInterval            time.Duration `json:"-"`
+	WriteWait               time.Duration `json:"-"`
+}
+
+// LoadClientCfg loads the client configuration from the specified file.
+func (c *ClientCfg) Load(cfgFile string) error {
+	b, err := ioutil.ReadFile(cfgFile)
+	err = json.Unmarshal(b, c)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling client cfg file %s: %s", cfgFile, err)
+	}
+	c.HealthbeatInterval, err = time.ParseDuration(c.RawHealthbeatInterval)
+	if err != nil {
+		return fmt.Errorf("error parsing healthbeat interval: %s", err)
+	}
+	c.HealthbeatPushPeriod, err = time.ParseDuration(c.RawHealthbeatPushPeriod)
+	if err != nil {
+		return fmt.Errorf("error parsing healthbeat push period %s", err)
+	}
+	c.SaveInterval, err = time.ParseDuration(c.RawSaveInterval)
+	if err != nil {
+		return fmt.Errorf("error parsing save interval %s", err)
+	}
+	c.PingPeriod, err = time.ParseDuration(c.RawPingPeriod)
+	if err != nil {
+		return fmt.Errorf("error parsing ping period %s", err)
+	}
+	c.PongWait, err = time.ParseDuration(c.RawPongWait)
+	if err != nil {
+		return fmt.Errorf("error parsing pong wait %s", err)
+	}
+	return nil
+}
+
+// Serialize serializes the struct.  The flatbuffers definition for this
+// struct is in clientconf.fbs and the resulting definition is in
+// client/ClientConf.go
+func (c *ClientCfg) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	client.CfgStart(bldr)
+	client.CfgAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
+	client.CfgAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
+	client.CfgAddPingPeriod(bldr, int64(c.PingPeriod))
+	client.CfgAddPongWait(bldr, int64(c.PongWait))
+	client.CfgAddSaveInterval(bldr, int64(c.SaveInterval))
+	bldr.Finish(client.CfgEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
+}
+
+// Deserialize deserializes the bytes into the struct.  The flatbuffers
+// definition for this struct is in clientconf.fbs and the resulting
+// definition is in client/ClientConf.go
+func (c *ClientCfg) Deserialize(p []byte) {
+	conf := client.GetRootAsCfg(p, 0)
+	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
+	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
+	c.PingPeriod = time.Duration(conf.PingPeriod())
+	c.PongWait = time.Duration(conf.PongWait())
+	c.SaveInterval = time.Duration(conf.SaveInterval())
 }
