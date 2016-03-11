@@ -192,6 +192,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUData:
+		fmt.Println("cpu")
 		cpu := sysinfo.GetRootAsCPUData(msg.DataBytes(), 0)
 		tags := map[string]string{"host": string(n.Inf.Hostname()), "region": string(n.Inf.Region()), "cpu": string(cpu.CPUID())}
 		fields := map[string]interface{}{
@@ -204,6 +205,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	case message.MemData:
+		fmt.Println("mem")
 		mem := sysinfo.GetRootAsMemData(msg.DataBytes(), 0)
 		tags := map[string]string{"host": string(n.Inf.Hostname()), "region": string(n.Inf.Region())}
 		fields := map[string]interface{}{

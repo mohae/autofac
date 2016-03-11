@@ -28,6 +28,15 @@ func (i *inventory) AddNodeInf(id uint32, c *client.Inf) {
 	i.mu.Unlock()
 }
 
+// SaveNodeInf updates the inventory with the client.Inf and saves it
+// to the database.
+func (i *inventory) SaveNodeInf(c *client.Inf, p []byte) error {
+	i.mu.Lock()
+	i.nodes[c.ID()] = c
+	i.mu.Unlock()
+	return srvr.DB.SaveClientInf(c)
+}
+
 // NodeExists returns whether or not the node is currently in the
 // inventory.  This function handles the locking and calls the unexported
 // nodeExists for the actual lookup.

@@ -43,90 +43,61 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var n *Node
-	var msg string
-	var ok, isNew bool
+	var ok bool
 	// the bytes are ClientInf
 	inf := client.GetRootAsInf(p, 0)
 	if inf.ID() == 0 {
-		isNew = true
 		// get a new client and its ID
 		n, err = srvr.NewNode()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
-		fmt.Printf("new ID: %d\n", n.Inf.ID())
-		// sync the client's info with the new Node's
-		// TODO: revisit when region/zone/dc is better implemented. i.e.
-		// the client probably won't have this info on first connect, will it?
-		bldr := flatbuffers.NewBuilder(0)
-		h := bldr.CreateByteString(inf.Hostname())
-		r := bldr.CreateByteString(inf.Region())
-		z := bldr.CreateByteString(inf.Zone())
-		d := bldr.CreateByteString(inf.DC())
-		client.InfStart(bldr)
-		client.InfAddID(bldr, n.Inf.ID())
-		client.InfAddHostname(bldr, h)
-		client.InfAddRegion(bldr, r)
-		client.InfAddZone(bldr, z)
-		client.InfAddDC(bldr, d)
-		bldr.Finish(client.InfEnd(bldr))
-		b := bldr.Bytes[bldr.Head():]
-		err = c.WriteMessage(websocket.BinaryMessage, b)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error writing new client ID: %s\n", err)
-		}
-		n.Inf = client.GetRootAsInf(b, 0)
-		// save the updated inf to the inventory
-		srvr.Inventory.AddNodeInf(n.Inf.ID(), n.Inf)
-		goto sendCfg
+		goto sendInf
 	}
 
-	msg = fmt.Sprintf("welcome back %X\n", inf.ID())
 	n, ok = srvr.Node(inf.ID())
 	if !ok {
-		isNew = true
 		n, err = srvr.NewNode()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "unable to create new client")
 			return
 		}
-		bldr := flatbuffers.NewBuilder(0)
-		h := bldr.CreateByteString(inf.Hostname())
-		r := bldr.CreateByteString(inf.Region())
-		z := bldr.CreateByteString(inf.Zone())
-		d := bldr.CreateByteString(inf.DC())
-		client.InfStart(bldr)
-		client.InfAddID(bldr, n.Inf.ID())
-		client.InfAddHostname(bldr, h)
-		client.InfAddRegion(bldr, r)
-		client.InfAddZone(bldr, z)
-		client.InfAddDC(bldr, d)
-		bldr.Finish(client.InfEnd(bldr))
-		b := bldr.Bytes[bldr.Head():]
-		n.Inf = client.GetRootAsInf(b, 0)
-		err = c.WriteMessage(websocket.BinaryMessage, b)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", n.Inf.ID(), err)
-			return
-		}
-		msg = fmt.Sprintf("welcome back; could not find %X in inventory, new id: %X\n", inf.ID(), n.Inf.ID())
 	}
-	// send the welcome message
-	err = c.WriteMessage(websocket.TextMessage, []byte(msg))
+
+sendInf:
+	// update the node with the current inf
+	bldr := flatbuffers.NewBuilder(0)
+	h := bldr.CreateByteString(inf.Hostname())
+	rr := bldr.CreateByteString(inf.Region())
+	z := bldr.CreateByteString(inf.Zone())
+	d := bldr.CreateByteString(inf.DC())
+	client.InfStart(bldr)
+	client.InfAddID(bldr, n.Inf.ID())
+	client.InfAddHostname(bldr, h)
+	client.InfAddRegion(bldr, rr)
+	client.InfAddZone(bldr, z)
+	client.InfAddDC(bldr, d)
+	bldr.Finish(client.InfEnd(bldr))
+	b := bldr.Bytes[bldr.Head():]
+	n.Inf = client.GetRootAsInf(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing welcome message for %X: %s\n", n.Inf.ID(), err)
+		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", n.Inf.ID(), err)
 		return
 	}
 
-	// TODO: for existing client, send the cfg from the hydrated info
-sendCfg:
-	_ = isNew
+	fmt.Printf("%X connected\n", n.Inf.ID())
+
+	// save the node inf to the inventory
+	srvr.Inventory.SaveNodeInf(n.Inf, b)
 	// the node needs the current connection
 	n.WS = c
-	// send the config
+	// send the inf
+	n.WriteBinaryMessage(message.ClientInf, b)
+	// send the default config
 	n.WriteBinaryMessage(message.ClientCfg, srvr.ClientCfg)
-
+	// send EOM
+	n.WriteBinaryMessage(message.EOT, nil)
 	// set the ping hanlder
 	n.WS.SetPingHandler(n.PingHandler)
 	n.WS.SetPingHandler(n.PongHandler)

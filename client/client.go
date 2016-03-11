@@ -24,7 +24,7 @@ type Client struct {
 	// Conn holds the configuration for connecting to the server.
 	ConnCfg
 	// Cfg holds the client configuration (how the client behaves).
-	Cfg
+	*Cfg
 
 	// Healthbeat buffers
 	CPUData [][]byte
@@ -94,45 +94,40 @@ func (c *Client) Connect() bool {
 		return false
 	}
 
-	typ, p, err := c.WS.ReadMessage()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
-		c.WS.Close()
-		return false
-	}
+	// read messages until we get an EOT
+handshake:
+	for {
+		typ, p, err := c.WS.ReadMessage()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
+			c.WS.Close()
+			return false
+		}
 
-	switch typ {
-	case websocket.BinaryMessage:
-		// a binary response is ClientInf
-		c.Inf = GetRootAsInf(p, 0)
-		c.InfBytes = p
-		fmt.Printf("new ID: %d\n", c.Inf.ID())
-	case websocket.TextMessage:
-		fmt.Printf("%s\n", string(p))
-	default:
-		fmt.Printf("unexpected welcome response type %d: %v\n", typ, p)
-		c.WS.Close()
-		return false
+		switch typ {
+		case websocket.BinaryMessage:
+			// process according to message kind
+			msg := message.GetRootAsMessage(p, 0)
+			switch message.Kind(msg.Kind()) {
+			case message.ClientInf:
+				c.Inf = GetRootAsInf(msg.DataBytes(), 0)
+			case message.ClientCfg:
+				c.Cfg = GetRootAsCfg(msg.DataBytes(), 0)
+			case message.EOT:
+				break handshake
+			default:
+				fmt.Fprint(os.Stderr, "unknown message type received during handshake; quitting\n")
+				return false
+			}
+		case websocket.TextMessage:
+			fmt.Printf("%s\n", string(p))
+		default:
+			fmt.Printf("unexpected welcome response type %d: %v\n", typ, p)
+			c.WS.Close()
+			return false
+		}
 	}
-	// the next message is the current Cfg, which is applied to the clientID
-	typ, p, err = c.WS.ReadMessage()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
-		c.WS.Close()
-		return false
-	}
-
-	switch typ {
-	case websocket.BinaryMessage:
-		// decode the message (it's in flatbuffer format), and apply to the cfg
-		c.processBinaryMessage(p)
-	default:
-		fmt.Printf("unexpected message type from the server: was expecting the client's cfg: %d: %v\n", typ, p)
-		fmt.Println("closing the connection and exiting")
-		c.WS.Close()
-		return false
-	}
-
+	fmt.Printf("%X connected\n", c.Inf.ID())
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
