@@ -85,3 +85,39 @@ func (c *Cfg) Serialize() []byte {
 func (c *Cfg) Deserialize(p []byte) {
 	c = GetRootAsCfg(p, 0)
 }
+
+// LoadInf loads the client.Inf from the received file.  If it doesn't exist
+// a basic inf with its ID set to 0 is returned.
+func LoadInf(fname string) *Inf {
+	b, err := ioutil.ReadFile(fname)
+	if err != nil {
+		bldr := flatbuffers.NewBuilder(0)
+		InfStart(bldr)
+		InfAddID(bldr, 0)
+		bldr.Finish(InfEnd(bldr))
+		return GetRootAsInf(bldr.Bytes[bldr.Head():], 0)
+	}
+	return GetRootAsInf(b, 0)
+}
+
+// Serialize serializes the Inf using flatbuffers and returns the []byte.
+func (i *Inf) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	h := bldr.CreateByteString(i.Hostname())
+	r := bldr.CreateByteString(i.Region())
+	z := bldr.CreateByteString(i.Zone())
+	d := bldr.CreateByteString(i.DataCenter())
+	InfStart(bldr)
+	InfAddID(bldr, i.ID())
+	InfAddHostname(bldr, h)
+	InfAddRegion(bldr, r)
+	InfAddZone(bldr, z)
+	InfAddDataCenter(bldr, d)
+	bldr.Finish(InfEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
+}
+
+// Save the current Inf to a file.
+func (i *Inf) Save(fname string) error {
+	return ioutil.WriteFile(fname, i.Serialize(), 0600)
+}

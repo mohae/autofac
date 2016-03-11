@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	flatbuffers "github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/message"
@@ -41,16 +40,10 @@ type Client struct {
 	ServerURL   url.URL
 }
 
-func New(id uint32, name string) *Client {
-	bldr := flatbuffers.NewBuilder(0)
-	n := bldr.CreateString(name)
-	InfStart(bldr)
-	InfAddID(bldr, id)
-	InfAddHostname(bldr, n)
-	bldr.Finish(InfEnd(bldr))
+func New(name string, inf *Inf) *Client {
 	return &Client{
-		Inf:      GetRootAsInf(bldr.Bytes[bldr.Head():], 0),
-		InfBytes: bldr.Bytes[bldr.Head():],
+		Inf:      inf,
+		InfBytes: inf.Serialize(),
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
@@ -393,21 +386,4 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		fmt.Println(string(p))
 	}
 	return nil
-}
-
-// Serialize serializes the Inf using flatbuffers and returns the []byte.
-func (i *Inf) Serialize() []byte {
-	bldr := flatbuffers.NewBuilder(0)
-	h := bldr.CreateByteString(i.Hostname())
-	r := bldr.CreateByteString(i.Region())
-	z := bldr.CreateByteString(i.Zone())
-	d := bldr.CreateByteString(i.DC())
-	InfStart(bldr)
-	InfAddID(bldr, i.ID())
-	InfAddHostname(bldr, h)
-	InfAddRegion(bldr, r)
-	InfAddZone(bldr, z)
-	InfAddDC(bldr, d)
-	bldr.Finish(InfEnd(bldr))
-	return bldr.Bytes[bldr.Head():]
 }

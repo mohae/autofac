@@ -6,7 +6,7 @@ table Inf {
     Hostname:string;
 	Region:string;
 	Zone:string;
-	DC:string;
+	DataCenter:string;
 }
 
 root_type Inf;
