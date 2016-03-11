@@ -80,8 +80,9 @@ func (s *server) Node(id uint32) (*Node, bool) {
 		return nil, false
 	}
 	return &Node{
-		Inf: inf,
-		Cfg: client.GetRootAsCfg(clientCfg, 0),
+		Inf:          inf,
+		Cfg:          client.GetRootAsCfg(clientCfg, 0),
+		InfluxClient: s.InfluxClient,
 	}, true
 }
 
