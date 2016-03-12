@@ -17,6 +17,7 @@ import (
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
+	"github.com/mohae/joefriday/mem"
 )
 
 // server is the container for a server's information and everything that it
@@ -207,21 +208,21 @@ func (n *Node) processBinaryMessage(p []byte) error {
 		return nil
 	case message.MemData:
 		fmt.Println("mem")
-		mem := sysinfo.GetRootAsMemData(msg.DataBytes(), 0)
+		m := mem.GetRootAsData(msg.DataBytes(), 0)
 		tags := map[string]string{"host": string(n.Inf.Hostname()), "region": string(n.Inf.Region())}
 		fields := map[string]interface{}{
-			"mem-total":   mem.MemTotal(),
-			"mem-used":    mem.MemUsed(),
-			"mem-free":    mem.MemFree(),
-			"mem-shared":  mem.MemShared(),
-			"mem-buffers": mem.MemBuffers(),
-			"cache-used":  mem.CacheUsed(),
-			"cache-free":  mem.CacheFree(),
-			"swap-total":  mem.SwapTotal(),
-			"swap-used":   mem.SwapUsed(),
-			"swap-free":   mem.SwapFree(),
+			"memtotal":     m.MemTotal(),
+			"memfree":      m.MemFree(),
+			"memavailable": m.MemAvailable(),
+			"buffers":      m.Buffers(),
+			"cached":       m.Cached(),
+			"swapcached":   m.SwapCached(),
+			"active":       m.Active(),
+			"inactive":     m.Inactive(),
+			"swaptotal":    m.SwapTotal(),
+			"swapfree":     m.SwapFree(),
 		}
-		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, mem.Timestamp()).UTC())
+		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp()).UTC())
 		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 		return nil
 	default:

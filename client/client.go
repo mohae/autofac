@@ -12,6 +12,7 @@ import (
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
+	"github.com/mohae/joefriday/mem"
 )
 
 // Client is anything that talks to the server.
@@ -316,6 +317,8 @@ func (c *Client) FlushMemData() [][]byte {
 	return data
 }
 
+// Healthbeat gathers basic system stats at a given interval.
+// TODO: handle doneCh stuff
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
 	if c.Cfg.HealthbeatInterval() == 0 {
@@ -323,8 +326,10 @@ func (c *Client) Healthbeat() {
 	}
 	cpuCh := make(chan []byte)
 	memCh := make(chan []byte)
+	doneCh := make(chan struct{})
+	errCh := make(chan error)
 	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
-	go sysinfo.MemDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh)
+	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
 	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
@@ -341,6 +346,8 @@ func (c *Client) Healthbeat() {
 				goto done
 			}
 			c.EnqueueMemData(data)
+		case err := <-errCh:
+			fmt.Fprintln(os.Stderr, err)
 		case <-t.C:
 			if !c.IsConnected() {
 				continue
