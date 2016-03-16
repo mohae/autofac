@@ -1,12 +1,13 @@
 package util
 
 import (
-	crand "crypto/rand"
+	"crypto/rand"
 	"fmt"
 	"math/big"
-	"math/rand"
 	"strconv"
 	"time"
+
+	pcg "github.com/dgryski/go-pcgr"
 )
 
 // max value for an int64
@@ -14,16 +15,16 @@ const maxInt64 = 1<<63 - 1
 const alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 
 // util has its own prng
-var prng = rand.New(rand.NewSource(seed()))
+var prng pcg.Rand
 
 func init() {
-	seed()
+	prng.Seed(seed())
 }
 
 // seed gets a random int64 using a CSPRNG.
 func seed() int64 {
 	bi := big.NewInt(maxInt64)
-	r, err := crand.Int(crand.Reader, bi)
+	r, err := rand.Int(rand.Reader, bi)
 	if err != nil {
 		panic(fmt.Sprintf("entropy read error: %s", err))
 	}
@@ -40,14 +41,14 @@ func ReSeedPRNG() {
 func NewStringID(n int) string {
 	id := make([]byte, n)
 	for i := 0; i < n; i++ {
-		id[i] = alphanum[prng.Intn(len(alphanum))]
+		id[i] = alphanum[prng.Bound(uint32(len(alphanum)))]
 	}
 	return string(id)
 }
 
 // RandUint32 returns a uint32 obtained from prng
 func RandUint32() uint32 {
-	return prng.Uint32()
+	return prng.Next()
 }
 
 // Int64ToBytes takes an int64 and returns it as an 8 byte array.
