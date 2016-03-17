@@ -2,6 +2,15 @@ package autofact
 
 import "time"
 
+// PathVarName is the environment variable name for the autofact path.
+const PathVarName = "AUTOFACTPATH"
+
+// Autofact defaults
+var (
+	DefaultPingPeriod = time.Duration(25) * time.Second
+	DefaultPongWait   = time.Duration(30) * time.Second
+)
+
 var (
 	// WriteBufferSize is the The default size for a websocket write buffer.
 	WriteBufferSize = 1024

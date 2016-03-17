@@ -49,7 +49,7 @@ func (c *ConnCfg) Load(cfgFile string) error {
 func (c *ConnCfg) Save() error {
 	j, err := json.MarshalIndent(c, "", "\t")
 	if err != nil {
-		return fmt.Errorf("fail: cfg save: %s", err)
+		return fmt.Errorf("fail: marshal cfg to JSON: %s", err)
 	}
 	f, err := os.OpenFile(c.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
 	if err != nil {
@@ -66,38 +66,28 @@ func (c *ConnCfg) Save() error {
 	return nil
 }
 
-// Serialize serializes the struct.  The flatbuffers definition for this
-// struct is in clientconf.fbs and the resulting definition is in
-// client/ClientConf.go
-func (c *Cfg) Serialize() []byte {
-	bldr := flatbuffers.NewBuilder(0)
-	CfgStart(bldr)
-	CfgAddHealthbeatInterval(bldr, c.HealthbeatInterval())
-	CfgAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	CfgAddPingPeriod(bldr, c.PingPeriod())
-	CfgAddPongWait(bldr, c.PongWait())
-	CfgAddSaveInterval(bldr, c.SaveInterval())
-	bldr.Finish(CfgEnd(bldr))
-	return bldr.Bytes[bldr.Head():]
-}
-
-// Deserialize deserializes the bytes into the current Cfg.
-func (c *Cfg) Deserialize(p []byte) {
-	c = GetRootAsCfg(p, 0)
+func (c *ConnCfg) SetFilename(v string) {
+	c.filename = v
 }
 
 // LoadInf loads the client.Inf from the received file.  If it doesn't exist
-// a basic inf with its ID set to 0 is returned.
-func LoadInf(fname string) *Inf {
+// a basic inf with its ID set to 0  and current hostname set is returned.
+func LoadInf(fname string) (*Inf, error) {
 	b, err := ioutil.ReadFile(fname)
 	if err != nil {
 		bldr := flatbuffers.NewBuilder(0)
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil, fmt.Errorf("load client inf failed: could not determine hostname: %s", err)
+		}
+		h := bldr.CreateString(hostname)
 		InfStart(bldr)
 		InfAddID(bldr, 0)
+		InfAddHostname(bldr, h)
 		bldr.Finish(InfEnd(bldr))
-		return GetRootAsInf(bldr.Bytes[bldr.Head():], 0)
+		return GetRootAsInf(bldr.Bytes[bldr.Head():], 0), nil
 	}
-	return GetRootAsInf(b, 0)
+	return GetRootAsInf(b, 0), nil
 }
 
 // Serialize serializes the Inf using flatbuffers and returns the []byte.
@@ -120,4 +110,24 @@ func (i *Inf) Serialize() []byte {
 // Save the current Inf to a file.
 func (i *Inf) Save(fname string) error {
 	return ioutil.WriteFile(fname, i.Serialize(), 0600)
+}
+
+// Serialize serializes the struct.  The flatbuffers definition for this
+// struct is in clientconf.fbs and the resulting definition is in
+// client/ClientConf.go
+func (c *Cfg) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	CfgStart(bldr)
+	CfgAddHealthbeatInterval(bldr, c.HealthbeatInterval())
+	CfgAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
+	CfgAddPingPeriod(bldr, c.PingPeriod())
+	CfgAddPongWait(bldr, c.PongWait())
+	CfgAddSaveInterval(bldr, c.SaveInterval())
+	bldr.Finish(CfgEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
+}
+
+// Deserialize deserializes the bytes into the current Cfg.
+func (c *Cfg) Deserialize(p []byte) {
+	c = GetRootAsCfg(p, 0)
 }

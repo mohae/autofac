@@ -17,6 +17,8 @@ import (
 
 // Client is anything that talks to the server.
 type Client struct {
+	// The Autofact Path
+	AutoPath string
 	// Inf holds the basic client information.
 	*Inf
 	// This is Inf as bytes: this is hopefully unnecessary, but I don't know at this point.
@@ -41,7 +43,7 @@ type Client struct {
 	ServerURL   url.URL
 }
 
-func New(name string, inf *Inf) *Client {
+func New(inf *Inf) *Client {
 	return &Client{
 		Inf:      inf,
 		InfBytes: inf.Serialize(),
@@ -194,7 +196,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			if connected {
 				continue
 			}
-			fmt.Fprint(os.Stderr, "unable to reconnect to server")
+			fmt.Fprintln(os.Stderr, "unable to reconnect to server")
 			return
 		}
 		switch typ {
@@ -214,7 +216,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				if connected {
 					continue
 				}
-				fmt.Fprint(os.Stderr, "unable to reconnect to server")
+				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
 				return
 			}
 		case websocket.BinaryMessage:
@@ -229,7 +231,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				if connected {
 					continue
 				}
-				fmt.Fprint(os.Stderr, "unable to reconnect to server")
+				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
 				return
 			}
 			c.processBinaryMessage(p)
@@ -240,7 +242,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			if connected {
 				continue
 			}
-			fmt.Fprint(os.Stderr, "unable to reconnect to server")
+			fmt.Fprintln(os.Stderr, "unable to reconnect to server")
 			return
 		}
 	}

@@ -20,9 +20,19 @@ import (
 	"github.com/mohae/joefriday/mem"
 )
 
+// Defaults for ClientCfg: if file doesn't exist.  Ping/Pong defaults come
+// from autofact.
+var (
+	DefaultHealthbeatInterval   = time.Duration(5) * time.Second
+	DefaultHealthbeatPushPeriod = time.Duration(15) * time.Second
+	DefaultSaveInterval         = time.Duration(30) * time.Second
+)
+
 // server is the container for a server's information and everything that it
 // is tracking/serving.
 type server struct {
+	// Autofact directory path
+	AutoPath string
 	// ID of the server
 	ID uint32
 	// URL of the server
@@ -253,6 +263,9 @@ type ClientCfg struct {
 // LoadClientCfg loads the client configuration from the specified file.
 func (c *ClientCfg) Load(cfgFile string) error {
 	b, err := ioutil.ReadFile(cfgFile)
+	if err != nil {
+		return err
+	}
 	err = json.Unmarshal(b, c)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling client cfg file %s: %s", cfgFile, err)
@@ -276,6 +289,34 @@ func (c *ClientCfg) Load(cfgFile string) error {
 	c.PongWait, err = time.ParseDuration(c.RawPongWait)
 	if err != nil {
 		return fmt.Errorf("error parsing pong wait %s", err)
+	}
+	return nil
+}
+
+// Returns a ClientCfg with application defaults.  This is called when
+// the Cfg file cannot be found.
+func (c *ClientCfg) UseAppDefaults() {
+	c.RawHealthbeatInterval = DefaultHealthbeatInterval.String()
+	c.HealthbeatInterval = DefaultHealthbeatInterval
+	c.RawHealthbeatPushPeriod = DefaultHealthbeatPushPeriod.String()
+	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
+	c.RawPingPeriod = autofact.DefaultPingPeriod.String()
+	c.PingPeriod = autofact.DefaultPingPeriod
+	c.RawPongWait = autofact.DefaultPongWait.String()
+	c.PongWait = autofact.DefaultPongWait
+	c.RawSaveInterval = DefaultSaveInterval.String()
+	c.SaveInterval = DefaultSaveInterval
+	// WriteWait isn't set because it isn't being used yet.
+}
+
+func (c *ClientCfg) SaveAsJSON(fname string) error {
+	b, err := json.MarshalIndent(c, "", "\t")
+	if err != nil {
+		return fmt.Errorf("error marshaling ClientCfg to JSON: %s", err)
+	}
+	err = ioutil.WriteFile(fname, b, 0600)
+	if err != nil {
+		return fmt.Errorf("ClientCfg save error: %s", err)
 	}
 	return nil
 }
