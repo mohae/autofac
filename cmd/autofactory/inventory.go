@@ -3,38 +3,38 @@ package main
 import (
 	"sync"
 
-	"github.com/mohae/autofact/client"
+	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/util"
 )
 
 // inventory holds a list of all the clients that the server knows of.
 type inventory struct {
-	nodes map[uint32]*client.Inf
+	nodes map[uint32]*cfg.SysInf
 	mu    sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		nodes: map[uint32]*client.Inf{},
+		nodes: map[uint32]*cfg.SysInf{},
 	}
 }
 
-// AddNodeInf adds the received client.Inf to the inventory.
-func (i *inventory) AddNodeInf(id uint32, c *client.Inf) {
-	// should collision detection be done/force update Client
+// AddNodeInf adds the received cfg.SysInf to the inventory.
+func (i *inventory) AddNodeInf(id uint32, c *cfg.SysInf) {
+	// should collision detection be done/force update cfg.SysInf
 	// if it exists?
 	i.mu.Lock()
 	i.nodes[id] = c
 	i.mu.Unlock()
 }
 
-// SaveNodeInf updates the inventory with the client.Inf and saves it
+// SaveNodeInf updates the inventory with the cfg.SysInf and saves it
 // to the database.
-func (i *inventory) SaveNodeInf(c *client.Inf, p []byte) error {
+func (i *inventory) SaveNodeInf(c *cfg.SysInf, p []byte) error {
 	i.mu.Lock()
 	i.nodes[c.ID()] = c
 	i.mu.Unlock()
-	return srvr.DB.SaveClientInf(c)
+	return srvr.DB.SaveSysInf(c)
 }
 
 // NodeExists returns whether or not the node is currently in the
@@ -55,9 +55,9 @@ func (i *inventory) nodeExists(id uint32) bool {
 	return ok
 }
 
-// ClientInf returns the client.Inf for the requested ID and wither or not
+// SysInf returns the cfg.SysInf for the requested ID and wither or not
 // the ID was found in the inventory.
-func (i *inventory) ClientInf(id uint32) (*client.Inf, bool) {
+func (i *inventory) SysInf(id uint32) (*cfg.SysInf, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	c, ok := i.nodes[id]
@@ -73,7 +73,7 @@ func (i *inventory) NewNode() *Node {
 		id := util.RandUint32()
 		if !i.nodeExists(id) {
 			n := newNode(id)
-			i.nodes[id] = n.Inf
+			i.nodes[id] = n.SysInf
 			return n
 		}
 	}

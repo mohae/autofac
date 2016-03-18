@@ -1,7 +1,7 @@
-// clientinf.fbs
-namespace client;
+// sysinf.fbs
+namespace cfg;
 
-table Inf {
+table SysInf {
 	ID:uint;
     Hostname:string;
 	Region:string;
@@ -9,4 +9,4 @@ table Inf {
 	DataCenter:string;
 }
 
-root_type Inf;
+root_type SysInf;

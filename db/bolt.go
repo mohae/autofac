@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/boltdb/bolt"
-	"github.com/mohae/autofact/client"
+	"github.com/mohae/autofact/cfg"
 )
 
 // Error is an error struct for database operations
@@ -90,9 +90,9 @@ func (b *Bolt) ClientIDs() ([]uint32, error) {
 	return ids, err
 }
 
-// Clients returns all the client.Infs within the database.
-func (b *Bolt) Clients() ([]*client.Inf, error) {
-	var clients []*client.Inf
+// SysInfs returns all the cfg.SysInfs within the database.
+func (b *Bolt) SysInfs() ([]*cfg.SysInf, error) {
+	var infs []*cfg.SysInf
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -101,15 +101,15 @@ func (b *Bolt) Clients() ([]*client.Inf, error) {
 		c := b.Cursor()
 		// each value is a serialized client.Inf
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			clients = append(clients, client.GetRootAsInf(v, 0))
+			infs = append(infs, cfg.GetRootAsSysInf(v, 0))
 		}
 		return nil
 	})
-	return clients, err
+	return infs, err
 }
 
-// SaveClientInf saves a client.Inf in the client bucket.
-func (b *Bolt) SaveClientInf(c *client.Inf) error {
+// SaveSysInf saves a cfg.SysInf in the client bucket.
+func (b *Bolt) SaveSysInf(c *cfg.SysInf) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		bid := make([]byte, 4)

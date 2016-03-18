@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/client"
 )
 
@@ -20,7 +21,7 @@ var defaultAutoFactDir = "$HOME/.autofact"
 var bDBFile = "autofact.bdb" // bolt database file
 
 // default
-var connCfg client.ConnCfg
+var connCfg cfg.Conn
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
 // to handle this after the next refactor of contour.
@@ -58,19 +59,19 @@ func realMain() int {
 	// to 0.  The server will provide the information.  The server also provides
 	// updated client settings.
 	// TODO: work out client inf setting management better.
-	inf, err := client.LoadInf(infFile)
+	inf, err := cfg.LoadSysInf(infFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
 	// get a client
 	c := client.New(inf)
 	c.AutoPath = autopath
-	err = c.ConnCfg.Load(cfgFile)
+	err = c.Conn.Load(cfgFile)
 	if err != nil {
 		// If there was an error, not it and use the default settings
 		fmt.Fprintf(os.Stderr, "using default settings: connection cfg: %s\n", err)
-		c.ConnCfg = connCfg
-		c.ConnCfg.SetFilename(cfgFile)
+		c.Conn = connCfg
+		c.Conn.SetFilename(cfgFile)
 	}
 
 	// open the database file
@@ -99,7 +100,7 @@ func realMain() int {
 		return 1
 	}
 	// save the client inf
-	err = c.Inf.Save(infFile)
+	err = c.SysInf.Save(infFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "save client inf failed: %s\n", err)
 	}
@@ -112,7 +113,7 @@ func realMain() int {
 	// start the connection handler
 	go c.MessageWriter(doneCh)
 	// if connected, save the cfg: this will also save the ClientID
-	err = c.ConnCfg.Save()
+	err = c.Conn.Save()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "save of cfg failed: %s\n", err)
 	}

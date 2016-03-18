@@ -9,7 +9,7 @@ const (
 	EOT          // end of transmission (for sequences that involve multiple messages, e.g. handshake)
 	Generic
 	Command
-	ClientInf
+	SysInf
 	ClientCfg
 	CPUData
 	MemData

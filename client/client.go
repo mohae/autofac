@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
@@ -20,19 +21,19 @@ import (
 type Client struct {
 	// The Autofact Path
 	AutoPath string
-	// Inf holds the basic client information.
-	*Inf
-	// This is Inf as bytes: this is hopefully unnecessary, but I don't know at this point.
-	InfBytes []byte
+	// SysInf holds the basic client information.
+	*cfg.SysInf
+	// This is SysInf as bytes: this is hopefully unnecessary, but I don't know at this point.
+	SysInfBytes []byte
 	// Conn holds the configuration for connecting to the server.
-	ConnCfg
+	cfg.Conn
 	// Cfg holds the client configuration (how the client behaves).
-	*Cfg
+	Cfg *cfg.Client
 	// DB conn for clients
 	DB db.Bolt
 
 	// queue of healthbeat messages to be sent.
-	healthbeatQ QMessage
+	healthbeatQ message.Queue
 
 	// this lock is for everything except messages or other things that are
 	// already threadsafe.
@@ -43,16 +44,15 @@ type Client struct {
 	// websocket.Binary type
 	SendB       chan []byte
 	SendStr     chan string
-	mu          sync.Mutex
 	isConnected bool
 	ServerURL   url.URL
 }
 
-func New(inf *Inf) *Client {
+func New(inf *cfg.SysInf) *Client {
 	return &Client{
-		Inf:      inf,
-		InfBytes: inf.Serialize(),
-		messages: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
+		SysInf:      inf,
+		SysInfBytes: inf.Serialize(),
+		healthbeatQ: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
@@ -89,7 +89,7 @@ func (c *Client) Connect() bool {
 	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
 	// respond with one.  Retry until the server responds, or until the
 	// reconnectPeriod has expired.
-	err := c.WS.WriteMessage(websocket.BinaryMessage, c.InfBytes)
+	err := c.WS.WriteMessage(websocket.BinaryMessage, c.SysInfBytes)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		c.WS.Close()
@@ -111,10 +111,10 @@ handshake:
 			// process according to message kind
 			msg := message.GetRootAsMessage(p, 0)
 			switch message.Kind(msg.Kind()) {
-			case message.ClientInf:
-				c.Inf = GetRootAsInf(msg.DataBytes(), 0)
+			case message.SysInf:
+				c.SysInf = cfg.GetRootAsSysInf(msg.DataBytes(), 0)
 			case message.ClientCfg:
-				c.Cfg = GetRootAsCfg(msg.DataBytes(), 0)
+				c.Cfg = cfg.GetRootAsClient(msg.DataBytes(), 0)
 			case message.EOT:
 				break handshake
 			default:
@@ -129,7 +129,7 @@ handshake:
 			return false
 		}
 	}
-	fmt.Printf("%X connected\n", c.Inf.ID())
+	fmt.Printf("%X connected\n", c.SysInf.ID())
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
@@ -293,6 +293,7 @@ func (c *Client) Healthbeat() {
 	errCh := make(chan error)
 	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
 	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
+	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {
@@ -324,18 +325,18 @@ done:
 func (c *Client) SendHealthbeatMessages() error {
 	// for each data, send a message
 	for {
-		m, ok := c.healthbeatQueue.Dequeue()
+		m, ok := c.healthbeatQ.Dequeue()
 		if !ok { // nothing left to send
 			break
 		}
-		c.SendB <- message.Serialize(c.Inf.ID(), m.Kind, m.Data)
+		c.SendB <- message.Serialize(c.SysInf.ID(), m.Kind, m.Data)
 	}
 	return nil
 }
 
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.SendB <- message.Serialize(c.Inf.ID(), kind, p)
+	c.SendB <- message.Serialize(c.SysInf.ID(), kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.

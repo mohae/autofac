@@ -11,11 +11,11 @@ import (
 	"strings"
 
 	"github.com/mohae/autofact"
-	"github.com/mohae/autofact/client"
+	"github.com/mohae/autofact/cfg"
 )
 
 var srvr server
-var connCfg client.ConnCfg
+var connCfg cfg.Conn
 
 // The default directory used by Autofactory for app data.
 var defaultAutoFactDir = "$HOME/.autofactory"

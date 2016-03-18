@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
-	"github.com/mohae/autofact/client"
+	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
@@ -65,11 +65,11 @@ func newServer(id uint32) server {
 // is a cached list of clients.
 func (s *server) LoadInventory() (int, error) {
 	var n int
-	clients, err := s.DB.Clients()
+	sysinfs, err := s.DB.SysInfs()
 	if err != nil {
 		return n, err
 	}
-	for i, c := range clients {
+	for i, c := range sysinfs {
 		s.Inventory.AddNodeInf(c.ID(), c)
 		n = i
 	}
@@ -84,15 +84,15 @@ func (s *server) connectToInfluxDB() error {
 }
 
 // Node checks the inventory to see if the client exists.  If it exists,
-// a Node is created from the client.Inf in the inventory.
+// a Node is created from the client in the inventory.
 func (s *server) Node(id uint32) (*Node, bool) {
-	inf, ok := s.Inventory.ClientInf(id)
+	inf, ok := s.Inventory.SysInf(id)
 	if !ok {
 		return nil, false
 	}
 	return &Node{
-		Inf:          inf,
-		Cfg:          client.GetRootAsCfg(clientCfg, 0),
+		SysInf:       inf,
+		Cfg:          cfg.GetRootAsClient(clientCfg, 0),
 		InfluxClient: s.InfluxClient,
 	}, true
 }
@@ -105,27 +105,27 @@ func (s *server) NewNode() (*Node, error) {
 	n := s.Inventory.NewNode()
 	n.InfluxClient = s.InfluxClient
 	// save the client info to the db
-	err := s.DB.SaveClientInf(n.Inf)
+	err := s.DB.SaveSysInf(n.SysInf)
 	return n, err
 }
 
 // Node holds information about a client node.
 type Node struct {
-	*client.Inf
-	*client.Cfg
-	WS *websocket.Conn
+	*cfg.SysInf
+	Cfg *cfg.Client
+	WS  *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
 
 func newNode(id uint32) *Node {
 	bldr := flatbuffers.NewBuilder(0)
-	client.InfStart(bldr)
-	client.InfAddID(bldr, id)
-	bldr.Finish(client.InfEnd(bldr))
+	cfg.SysInfStart(bldr)
+	cfg.SysInfAddID(bldr, id)
+	bldr.Finish(cfg.SysInfEnd(bldr))
 	return &Node{
-		Inf: client.GetRootAsInf(bldr.Bytes[bldr.Head():], 0),
-		Cfg: client.GetRootAsCfg(clientCfg, 0),
+		SysInf: cfg.GetRootAsSysInf(bldr.Bytes[bldr.Head():], 0),
+		Cfg:    cfg.GetRootAsClient(clientCfg, 0),
 	}
 }
 
@@ -193,7 +193,7 @@ func (n *Node) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (n *Node) WriteBinaryMessage(k message.Kind, p []byte) {
-	n.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(n.Inf.ID(), k, p))
+	n.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(n.SysInf.ID(), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -206,7 +206,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 	case message.CPUData:
 		fmt.Println("cpu")
 		cpu := sysinfo.GetRootAsCPUData(msg.DataBytes(), 0)
-		tags := map[string]string{"host": string(n.Inf.Hostname()), "region": string(n.Inf.Region()), "cpu": string(cpu.CPUID())}
+		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region()), "cpu": string(cpu.CPUID())}
 		fields := map[string]interface{}{
 			"user":   float32(cpu.Usr()) / 100.0,
 			"sys":    float32(cpu.Sys()) / 100.0,
@@ -219,7 +219,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 	case message.MemData:
 		fmt.Println("mem")
 		m := mem.GetRootAsData(msg.DataBytes(), 0)
-		tags := map[string]string{"host": string(n.Inf.Hostname()), "region": string(n.Inf.Region())}
+		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
 		fields := map[string]interface{}{
 			"memtotal":     m.MemTotal(),
 			"memfree":      m.MemFree(),
@@ -245,7 +245,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 // ClientCfg defines the client behavior, outside of connections.  This
 // is serverside only and for loading the default clientCfg from a file.
 // All communication of cfg data between Server and Client (Node) is done
-// with Flatbuffers serialized client.Cfg.
+// with Flatbuffers serialized cfg.Client.
 type ClientCfg struct {
 	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
 	HealthbeatInterval      time.Duration `json:"-"`
@@ -326,21 +326,21 @@ func (c *ClientCfg) SaveAsJSON(fname string) error {
 // client/ClientConf.go
 func (c *ClientCfg) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	client.CfgStart(bldr)
-	client.CfgAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	client.CfgAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	client.CfgAddPingPeriod(bldr, int64(c.PingPeriod))
-	client.CfgAddPongWait(bldr, int64(c.PongWait))
-	client.CfgAddSaveInterval(bldr, int64(c.SaveInterval))
-	bldr.Finish(client.CfgEnd(bldr))
+	cfg.ClientStart(bldr)
+	cfg.ClientAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
+	cfg.ClientAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
+	cfg.ClientAddPingPeriod(bldr, int64(c.PingPeriod))
+	cfg.ClientAddPongWait(bldr, int64(c.PongWait))
+	cfg.ClientAddSaveInterval(bldr, int64(c.SaveInterval))
+	bldr.Finish(cfg.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
 // Deserialize deserializes the bytes into the struct.  The flatbuffers
-// definition for this struct is in clientconf.fbs and the resulting
-// definition is in client/ClientConf.go
+// definition for this struct is in cfg_client.fbs and the resulting
+// definition is in cfg/Client.go
 func (c *ClientCfg) Deserialize(p []byte) {
-	conf := client.GetRootAsCfg(p, 0)
+	conf := cfg.GetRootAsClient(p, 0)
 	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
 	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
 	c.PingPeriod = time.Duration(conf.PingPeriod())
