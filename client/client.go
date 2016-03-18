@@ -30,13 +30,15 @@ type Client struct {
 	*Cfg
 	// DB conn for clients
 	DB db.Bolt
-	// Healthbeat buffers
-	CPUData [][]byte
-	MemData [][]byte
 
-	messages []byte
-	muSend   sync.Mutex
-	WS       *websocket.Conn
+	// queue of healthbeat messages to be sent.
+	healthbeatQ QMessage
+
+	// this lock is for everything except messages or other things that are
+	// already threadsafe.
+	mu sync.Mutex
+	// The websocket connection that this client uses.
+	WS *websocket.Conn
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
 	SendB       chan []byte
@@ -50,6 +52,7 @@ func New(inf *Inf) *Client {
 	return &Client{
 		Inf:      inf,
 		InfBytes: inf.Serialize(),
+		messages: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
@@ -147,6 +150,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 		case p, ok := <-c.SendB:
 			// don't send if not connected
 			if !c.IsConnected() {
+				// TODO add write to db for persistence instead.
 				continue
 			}
 			if !ok {
@@ -207,6 +211,8 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			fmt.Printf("textmessage: %s\n", p)
 			if bytes.Equal(p, autofact.AckMsg) {
 				// if this is an acknowledgement message, do nothing
+				// TODO: should tracking of acks, per message, for certain
+				// message kinds be done?
 				continue
 			}
 			err := c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
@@ -272,58 +278,10 @@ func (c *Client) PongHandler(msg string) error {
 	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
-// TODO: should CPUData be enclosed in a struct for locking purposes?
-func (c *Client) EnqueueCPUData(data []byte) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.CPUData = append(c.CPUData, data)
-	return len(c.CPUData)
-}
-
-// EnqueueMemData adds the received data to the MemData buffer.  The current
-// number of entries in the buffer is returned.
-func (c *Client) EnqueueMemData(data []byte) int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.MemData = append(c.MemData, data)
-	return len(c.MemData)
-}
-
-// If the message send fails, whatever was cached will be lost.
-// TODO: the current stats get copied for send; should the stat slice
-// get reset now?  There is possible data loss this way; but there's
-// possible data loss if the stat slice gets appended to between this
-// copy op and the send completing, unless a lock is held the entire time,
-// which could block the stats reading process leading to data loss due to
-// missed reads.  I'm thinking COW or delete now; but punting becasue it
-// really doesn't matter as this is just an experiment, right now.
-// This also applies to CPUDatasFB
-// TODO: should the messages to be sent be copied to a send cache so that
-// there isn't data loss on a failed send?  Consecutive PushPeriods that
-// failed to send may be problematic in that situation.
-func (c *Client) FlushCPUData() [][]byte {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	data := make([][]byte, len(c.CPUData))
-	copy(data, c.CPUData)
-	c.CPUData = nil
-	return data
-}
-
-// FlushMemData returns a copy of the client's MemData and nils the client's
-// cache.
-// The notes above apply here too.
-func (c *Client) FlushMemData() [][]byte {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	data := make([][]byte, len(c.MemData))
-	copy(data, c.MemData)
-	c.MemData = nil
-	return data
-}
-
 // Healthbeat gathers basic system stats at a given interval.
 // TODO: handle doneCh stuff
+// TODO: HealthBeatPushPeriod vs sending message as they are
+// generated.
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
 	if c.Cfg.HealthbeatInterval() == 0 {
@@ -335,7 +293,6 @@ func (c *Client) Healthbeat() {
 	errCh := make(chan error)
 	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
 	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
-	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {
@@ -344,37 +301,34 @@ func (c *Client) Healthbeat() {
 				fmt.Println("cpu stats chan closed")
 				goto done
 			}
-			c.EnqueueCPUData(data)
+			c.healthbeatQ.Enqueue(message.QMessage{message.CPUData, data})
 		case data, ok := <-memCh:
 			if !ok {
 				fmt.Println("cpu stats chan closed")
 				goto done
 			}
-			c.EnqueueMemData(data)
+			c.healthbeatQ.Enqueue(message.QMessage{message.MemData, data})
 		case err := <-errCh:
 			fmt.Fprintln(os.Stderr, err)
 		case <-t.C:
-			if !c.IsConnected() {
-				continue
-			}
-			c.SendData(message.CPUData, c.FlushCPUData())
-			c.SendData(message.MemData, c.FlushMemData())
+			c.SendHealthbeatMessages()
 		}
 	}
 done:
-	// Flush the buffer.
-	c.SendData(message.CPUData, c.FlushCPUData())
-	c.SendData(message.MemData, c.FlushMemData())
+	// Flush the queue.
+	c.SendHealthbeatMessages()
 }
 
-// SendData sends the received data to the server.  The caller checks to see
-// if the client is connected to the server before calling.  If the connection
-// is lost during processing, the cached stats will be lost.
+// SendHealthbeatMessages sends everything in the healthbeat queue.
 // TODO:  should this be more resilient?
-func (c *Client) SendData(kind message.Kind, data [][]byte) error {
+func (c *Client) SendHealthbeatMessages() error {
 	// for each data, send a message
-	for _, v := range data {
-		c.SendB <- message.Serialize(c.Inf.ID(), kind, v)
+	for {
+		m, ok := c.healthbeatQueue.Dequeue()
+		if !ok { // nothing left to send
+			break
+		}
+		c.SendB <- message.Serialize(c.Inf.ID(), m.Kind, m.Data)
 	}
 	return nil
 }
