@@ -16,7 +16,7 @@ var cfgFile = "autofact-client.json"
 var infFile = "autoinf.dat"
 
 // This is the default directory for autofact-client app data.
-var defaultAutoFactDir = "$HOME/.autofactclient"
+var defaultAutoFactDir = "$HOME/.autofact"
 
 // default
 var connCfg client.ConnCfg
