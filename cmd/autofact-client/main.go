@@ -17,6 +17,7 @@ var infFile = "autoinf.dat"
 
 // This is the default directory for autofact-client app data.
 var defaultAutoFactDir = "$HOME/.autofact"
+var bDBFile = "autofact.bdb" // bolt database file
 
 // default
 var connCfg client.ConnCfg
@@ -51,6 +52,7 @@ func realMain() int {
 	}
 	cfgFile = filepath.Join(autopath, cfgFile)
 	infFile = filepath.Join(autopath, infFile)
+	bDBFile = filepath.Join(autopath, bDBFile)
 	// Load the client's information; if it can't be found or doesn't exist, e.g.
 	// is a new client, a serialized client.Inf is returned with the client id set
 	// to 0.  The server will provide the information.  The server also provides
@@ -70,6 +72,14 @@ func realMain() int {
 		c.ConnCfg = connCfg
 		c.ConnCfg.SetFilename(cfgFile)
 	}
+
+	// open the database file
+	err = c.DB.Open(bDBFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error opening database: %s", err)
+		return 1
+	}
+	defer c.DB.DB.Close()
 
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}

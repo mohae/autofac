@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
 	"github.com/mohae/joefriday/mem"
@@ -27,13 +28,15 @@ type Client struct {
 	ConnCfg
 	// Cfg holds the client configuration (how the client behaves).
 	*Cfg
-
+	// DB conn for clients
+	DB db.Bolt
 	// Healthbeat buffers
 	CPUData [][]byte
 	MemData [][]byte
 
-	muSend sync.Mutex
-	WS     *websocket.Conn
+	messages []byte
+	muSend   sync.Mutex
+	WS       *websocket.Conn
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
 	SendB       chan []byte
