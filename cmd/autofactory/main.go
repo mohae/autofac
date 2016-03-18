@@ -24,7 +24,7 @@ var defaultAutoFactDir = "$HOME/.autofactory"
 // server's ClientCfg file, which is specified by clientCfgFile.
 var clientCfg []byte
 var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
-var dbFile = flag.String("dbfile", "autofact.bdb", "location of the autofactory database file")
+var bDBFile = flag.String("dbfile", "autofactory.bdb", "location of the autofactory database file")
 var influxDBName string
 var influxUser string
 var influxPassword string
@@ -35,7 +35,7 @@ func init() {
 	flag.StringVar(&connCfg.ServerPort, "port", "8675", "port to use for websockets")
 	flag.StringVar(&connCfg.ServerPort, "p", "8675", "port to use for websockets (short)")
 	flag.StringVar(clientCfgFile, "c", "autofact-client.json", "location of client configuration file (short)")
-	flag.StringVar(dbFile, "d", "autofact.bdb", "location of the autfactory database file (short)")
+	flag.StringVar(bDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
 	flag.StringVar(&influxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
 	flag.StringVar(&influxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
 	flag.StringVar(&influxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
@@ -67,7 +67,7 @@ func realMain() int {
 	}
 
 	*clientCfgFile = filepath.Join(autopath, *clientCfgFile)
-	*dbFile = filepath.Join(autopath, *dbFile)
+	*bDBFile = filepath.Join(autopath, *bDBFile)
 	flag.Parse()
 	// it is assumed that the server address is an IPv4
 	// TODO: revisit this assumption
@@ -113,7 +113,7 @@ func realMain() int {
 	srvr.PongWait = cCfg.PongWait
 
 	// bdb is used as the extension for bolt db.
-	err = srvr.DB.Open("autofact.bdb")
+	err = srvr.DB.Open(*bDBFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database: %s", err)
 		return 1
