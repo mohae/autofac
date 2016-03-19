@@ -115,7 +115,7 @@ func realMain() int {
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open(*bDBFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening database: %s", err)
+		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
 		return 1
 	}
 	defer srvr.DB.DB.Close()
@@ -123,7 +123,7 @@ func realMain() int {
 	// connect to Influx
 	err = srvr.connectToInfluxDB()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error connecting to %s: %s", influxDBName, err)
+		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", influxDBName, err)
 		return 1
 	}
 	// start the Influx writer

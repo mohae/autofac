@@ -77,7 +77,7 @@ func realMain() int {
 	// open the database file
 	err = c.DB.Open(bDBFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening database: %s", err)
+		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
 		return 1
 	}
 	defer c.DB.DB.Close()
