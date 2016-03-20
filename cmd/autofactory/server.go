@@ -18,6 +18,7 @@ import (
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
 	"github.com/mohae/joefriday/mem"
+	"github.com/mohae/joefriday/net"
 )
 
 // Defaults for ClientCfg: if file doesn't exist.  Ping/Pong defaults come
@@ -197,6 +198,8 @@ func (n *Node) WriteBinaryMessage(k message.Kind, p []byte) {
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
+// TODO: revisit tags and fields handling. revisit design of tag and field
+// handling; make pluggable for backends other than influx?
 func (n *Node) processBinaryMessage(p []byte) error {
 	// unmarshal the message
 	msg := message.GetRootAsMessage(p, 0)
@@ -234,6 +237,47 @@ func (n *Node) processBinaryMessage(p []byte) error {
 		}
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp()).UTC())
 		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		return nil
+	case message.NetDevData:
+		fmt.Printf("%s: net/dev\n", n.SysInf.Hostname())
+		d := net.GetRootAsData(msg.DataBytes(), 0)
+		iLen := d.InterfacesLength()
+		iFace := &net.IFace{}
+		pts := make([]*influx.Point, 0, 2) // there should be at least 2 interfaces
+		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region()), "interface": ""}
+		var bErr error // the last error in the batch, if any
+		// each interface is its own point.
+		for i := 0; i < iLen; i++ {
+			if !d.Interfaces(iFace, i) {
+				continue
+			}
+			tags["interface"] = string(iFace.Name())
+			fields := map[string]interface{}{
+				"received.bytes":         iFace.RBytes(),
+				"received.packets":       iFace.RPackets(),
+				"received.errs":          iFace.RErrs(),
+				"received.drop":          iFace.RDrop(),
+				"received.fifo":          iFace.RFIFO(),
+				"received.frame":         iFace.RFrame(),
+				"received.compressed":    iFace.RCompressed(),
+				"received.multicast":     iFace.RMulticast(),
+				"transmitted.bytes":      iFace.TBytes(),
+				"transmitted.packets":    iFace.TPackets(),
+				"transmitted.errs":       iFace.TErrs(),
+				"transmitted.drop":       iFace.TDrop(),
+				"transmitted.fifo":       iFace.TFIFO(),
+				"transmitted.colls":      iFace.TColls(),
+				"transmitted.carrier":    iFace.TCarrier(),
+				"transmitted.compressed": iFace.TCompressed(),
+			}
+			pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, d.Timestamp()).UTC())
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "net/dev: create influx.Point: %s: %s", iFace.Name(), err)
+				bErr = err
+			}
+			pts = append(pts, pt)
+		}
+		n.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 		return nil
 	default:
 		fmt.Println("unknown message kind")

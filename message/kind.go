@@ -13,6 +13,7 @@ const (
 	ClientCfg
 	CPUData
 	MemData
+	NetDevData
 )
 
 // Int16 is a convenience method that returns the Kind as an int16 value.

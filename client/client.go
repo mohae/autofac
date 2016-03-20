@@ -15,6 +15,7 @@ import (
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/sysinfo"
 	"github.com/mohae/joefriday/mem"
+	"github.com/mohae/joefriday/net"
 )
 
 // Client is anything that talks to the server.
@@ -289,10 +290,12 @@ func (c *Client) Healthbeat() {
 	}
 	cpuCh := make(chan []byte)
 	memCh := make(chan []byte)
+	netdevCh := make(chan []byte)
 	doneCh := make(chan struct{})
 	errCh := make(chan error)
 	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
 	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
+	go net.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), netdevCh, doneCh, errCh)
 	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
@@ -305,10 +308,16 @@ func (c *Client) Healthbeat() {
 			c.healthbeatQ.Enqueue(message.QMessage{message.CPUData, data})
 		case data, ok := <-memCh:
 			if !ok {
-				fmt.Println("cpu stats chan closed")
+				fmt.Println("mem stats chan closed")
 				goto done
 			}
 			c.healthbeatQ.Enqueue(message.QMessage{message.MemData, data})
+		case data, ok := <-netdevCh:
+			if !ok {
+				fmt.Println("net/dev stats chan closed")
+				goto done
+			}
+			c.healthbeatQ.Enqueue(message.QMessage{message.NetDevData, data})
 		case err := <-errCh:
 			fmt.Fprintln(os.Stderr, err)
 		case <-t.C:
