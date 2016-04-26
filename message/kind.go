@@ -11,9 +11,10 @@ const (
 	Command
 	SysInf
 	ClientCfg
-	CPUData
-	MemData
-	NetDevData
+	CPUUtilization // CPU Utilization information
+	SysLoadAvg     // Sysinfo based load avg
+	SysMemInfo     // Sysinfo based mem info
+	NetUsage       // network interface usage info
 )
 
 // Int16 is a convenience method that returns the Kind as an int16 value.

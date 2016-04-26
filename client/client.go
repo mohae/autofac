@@ -13,9 +13,9 @@ import (
 	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
-	"github.com/mohae/autofact/sysinfo"
-	"github.com/mohae/joefriday/mem"
-	"github.com/mohae/joefriday/net"
+	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
+	netf "github.com/mohae/joefriday/net/usage/flat"
+	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
 // Client is anything that talks to the server.
@@ -288,37 +288,62 @@ func (c *Client) Healthbeat() {
 	if c.Cfg.HealthbeatInterval() == 0 {
 		return
 	}
-	cpuCh := make(chan []byte)
-	memCh := make(chan []byte)
-	netdevCh := make(chan []byte)
-	doneCh := make(chan struct{})
+	//	netdevCh := make(chan []byte)
+	//	doneCh := make(chan struct{})
 	errCh := make(chan error)
-	go sysinfo.CPUDataTicker(time.Duration(c.Cfg.HealthbeatInterval()), cpuCh)
-	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
-	go net.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), netdevCh, doneCh, errCh)
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
+	if err != nil {
+		errCh <- err
+		return
+	}
+	cpuTickr := cpuTicker.(*cpuutil.Ticker)
+	defer cpuTickr.Close()
+	defer cpuTickr.Stop()
+	memTicker, err := memf.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
+	if err != nil {
+		errCh <- err
+		return
+	}
+	memTickr := memTicker.(*memf.Ticker)
+	defer memTickr.Close()
+	defer memTickr.Stop()
+	netTicker, err := netf.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
+	if err != nil {
+		errCh <- err
+		return
+	}
+	netTickr := netTicker.(*netf.Ticker)
+	defer netTickr.Close()
+	defer netTickr.Stop()
+	//	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
+	//	go net.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), netdevCh, doneCh, errCh)
 	t := time.NewTicker(time.Duration(c.Cfg.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {
-		case data, ok := <-cpuCh:
+		case data, ok := <-cpuTickr.Data:
 			if !ok {
-				fmt.Println("cpu stats chan closed")
+				fmt.Println("cpu utilization chan closed")
 				goto done
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.CPUData, data})
-		case data, ok := <-memCh:
+			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
+		case err := <-cpuTickr.Errs:
+			fmt.Fprintln(os.Stderr, err)
+		case data, ok := <-memTickr.Data:
 			if !ok {
-				fmt.Println("mem stats chan closed")
+				fmt.Println("mem info chan closed")
 				goto done
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.MemData, data})
-		case data, ok := <-netdevCh:
+			c.healthbeatQ.Enqueue(message.QMessage{message.SysMemInfo, data})
+		case err := <-memTickr.Errs:
+			fmt.Fprintln(os.Stderr, err)
+		case data, ok := <-netTickr.Data:
 			if !ok {
-				fmt.Println("net/dev stats chan closed")
+				fmt.Println("network usage stats chan closed")
 				goto done
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.NetDevData, data})
-		case err := <-errCh:
+			c.healthbeatQ.Enqueue(message.QMessage{message.NetUsage, data})
+		case err := <-netTickr.Errs:
 			fmt.Fprintln(os.Stderr, err)
 		case <-t.C:
 			c.SendHealthbeatMessages()
