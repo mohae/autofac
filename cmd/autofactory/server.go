@@ -18,6 +18,7 @@ import (
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
+	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
@@ -232,6 +233,17 @@ func (n *Node) processBinaryMessage(p []byte) error {
 			pts = append(pts, pt)
 		}
 		n.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
+	case message.SysLoadAvg:
+		fmt.Printf("%s: loadavg\n", n.SysInf.Hostname())
+		l := loadf.Deserialize(msg.DataBytes())
+		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
+		fields := map[string]interface{}{
+			"one":     l.One,
+			"five":    l.Five,
+			"fifteen": l.Fifteen,
+		}
+		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
+		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.SysMemInfo:
 		fmt.Printf("%s: meminfo\n", n.SysInf.Hostname())
 		m := memf.Deserialize(msg.DataBytes())

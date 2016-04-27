@@ -15,6 +15,7 @@ import (
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
+	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
@@ -288,31 +289,46 @@ func (c *Client) Healthbeat() {
 	if c.Cfg.HealthbeatInterval() == 0 {
 		return
 	}
-	//	netdevCh := make(chan []byte)
-	//	doneCh := make(chan struct{})
+	// error channel
 	errCh := make(chan error)
+	// ticker for cpu utilization data
 	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
 	}
 	cpuTickr := cpuTicker.(*cpuutil.Ticker)
+	// make sure the resources get cleaned up
 	defer cpuTickr.Close()
 	defer cpuTickr.Stop()
+	// ticker for loadavg data
+	loadTicker, err := loadf.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
+	if err != nil {
+		errCh <- err
+		return
+	}
+	loadTickr := loadTicker.(*loadf.Ticker)
+	// make sure the resources get cleaned up
+	defer loadTickr.Close()
+	defer loadTickr.Stop()
+	// ticker for meminfo data
 	memTicker, err := memf.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
 	}
 	memTickr := memTicker.(*memf.Ticker)
+	// make sure the resources get cleaned up
 	defer memTickr.Close()
 	defer memTickr.Stop()
+	// ticker for network usage data
 	netTicker, err := netf.NewTicker(time.Duration(c.Cfg.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
 	}
 	netTickr := netTicker.(*netf.Ticker)
+	// make sure the resources get cleaned up
 	defer netTickr.Close()
 	defer netTickr.Stop()
 	//	go mem.DataTicker(time.Duration(c.Cfg.HealthbeatInterval()), memCh, doneCh, errCh)
@@ -328,6 +344,14 @@ func (c *Client) Healthbeat() {
 			}
 			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
 		case err := <-cpuTickr.Errs:
+			fmt.Fprintln(os.Stderr, err)
+		case data, ok := <-loadTickr.Data:
+			if !ok {
+				fmt.Println("load avg chan closed")
+				goto done
+			}
+			c.healthbeatQ.Enqueue(message.QMessage{message.SysLoadAvg, data})
+		case err := <-loadTickr.Errs:
 			fmt.Fprintln(os.Stderr, err)
 		case data, ok := <-memTickr.Data:
 			if !ok {
