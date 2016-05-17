@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -118,7 +119,6 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
 		return 1
 	}
-	defer srvr.DB.DB.Close()
 
 	// connect to Influx
 	err = srvr.connectToInfluxDB()
@@ -126,6 +126,7 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", influxDBName, err)
 		return 1
 	}
+	go handleSignals(&srvr)
 	// start the Influx writer
 	// TODO: influx writer should handle done channel signaling
 	go srvr.InfluxClient.Write()
@@ -137,6 +138,14 @@ func realMain() int {
 		fmt.Fprintf(os.Stderr, "unable to start server: %s\n", err)
 		return 1
 	}
-	fmt.Println("autofact: running")
 	return 0
+}
+
+func handleSignals(srvr *server) {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	v := <-c
+	fmt.Printf("\nshutting down autofactory: received %v\n", v)
+	srvr.DB.DB.Close()
+	os.Exit(1)
 }
