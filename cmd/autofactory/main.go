@@ -23,7 +23,7 @@ var defaultAutoFactDir = "$HOME/.autofactory"
 
 // the serialized default client.Cfg.  The data is originally loaded from the
 // server's ClientCfg file, which is specified by clientCfgFile.
-var clientCfg []byte
+var clientConf []byte
 var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
 var bDBFile = flag.String("dbfile", "autofactory.bdb", "location of the autofactory database file")
 var influxDBName string
@@ -88,7 +88,9 @@ func realMain() int {
 	fmt.Printf("%x\n", v)
 	srvr = newServer(v)
 	srvr.AutoPath = autopath
-	// load the default client cfg
+	// load the default client cfg; this is used for new clients.
+	// TODO: in the future, there should be support for enabling setting per
+	// client, or group, or role, or pod, etc.
 	var cCfg ClientCfg
 	err = cCfg.Load(*clientCfgFile)
 	if err != nil {
@@ -105,10 +107,10 @@ func realMain() int {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
-
 	}
-	clientCfg = cCfg.Serialize()
-	srvr.ClientCfg = clientCfg
+
+	clientConf = cCfg.Serialize()
+	srvr.ClientConf = clientConf
 	// Ther server PingPeriod and PongWait should be the same as the clients
 	srvr.PingPeriod = cCfg.PingPeriod
 	srvr.PongWait = cCfg.PongWait

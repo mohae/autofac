@@ -70,64 +70,64 @@ func (c *Conn) SetFilename(v string) {
 	c.filename = v
 }
 
-// LoadSysInf loads the cfg.SysInf from the received file.  If it doesn't exist
+// LoadNode loads the cfg.Node from the received file.  If it doesn't exist
 // a basic inf with its ID set to 0  and current hostname set is returned.
-func LoadSysInf(name string) (*SysInf, error) {
+func LoadNode(name string) (*Node, error) {
 	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		bldr := flatbuffers.NewBuilder(0)
 		hostname, err := os.Hostname()
 		if err != nil {
-			return nil, fmt.Errorf("load client inf failed: could not determine hostname: %s\n", err)
+			return nil, fmt.Errorf("load node inf failed: could not determine hostname: %s\n", err)
 		}
 		h := bldr.CreateString(hostname)
-		SysInfStart(bldr)
-		SysInfAddID(bldr, 0)
-		SysInfAddHostname(bldr, h)
-		bldr.Finish(SysInfEnd(bldr))
-		return GetRootAsSysInf(bldr.Bytes[bldr.Head():], 0), nil
+		NodeStart(bldr)
+		NodeAddID(bldr, 0)
+		NodeAddHostname(bldr, h)
+		bldr.Finish(NodeEnd(bldr))
+		return GetRootAsNode(bldr.Bytes[bldr.Head():], 0), nil
 	}
-	return GetRootAsSysInf(b, 0), nil
+	return GetRootAsNode(b, 0), nil
 }
 
-// Serialize serializes the SysInf using flatbuffers and returns the []byte.
-func (i *SysInf) Serialize() []byte {
+// Serialize serializes the Node using flatbuffers and returns the []byte.
+func (n *Node) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	h := bldr.CreateByteString(i.Hostname())
-	r := bldr.CreateByteString(i.Region())
-	z := bldr.CreateByteString(i.Zone())
-	d := bldr.CreateByteString(i.DataCenter())
-	SysInfStart(bldr)
-	SysInfAddID(bldr, i.ID())
-	SysInfAddHostname(bldr, h)
-	SysInfAddRegion(bldr, r)
-	SysInfAddZone(bldr, z)
-	SysInfAddDataCenter(bldr, d)
-	bldr.Finish(SysInfEnd(bldr))
+	h := bldr.CreateByteString(n.Hostname())
+	r := bldr.CreateByteString(n.Region())
+	z := bldr.CreateByteString(n.Zone())
+	d := bldr.CreateByteString(n.DataCenter())
+	NodeStart(bldr)
+	NodeAddID(bldr, n.ID())
+	NodeAddHostname(bldr, h)
+	NodeAddRegion(bldr, r)
+	NodeAddZone(bldr, z)
+	NodeAddDataCenter(bldr, d)
+	bldr.Finish(NodeEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Save the current SysInf to a file.
-func (i *SysInf) Save(fname string) error {
-	return ioutil.WriteFile(fname, i.Serialize(), 0600)
+// Save the current Node to a file.
+func (n *Node) Save(fname string) error {
+	return ioutil.WriteFile(fname, n.Serialize(), 0600)
 }
 
 // Serialize serializes the struct.  The flatbuffers definition for this
-// struct is in autofact/cfg_client.fbs and the resulting definition is in
-// client/ClientConf.go
-func (c *Client) Serialize() []byte {
+// struct is in autofact/cfg_conf.fbs and the resulting definition is in
+// cfg/Conf.go
+func (c *Conf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	ClientStart(bldr)
-	ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval())
-	ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	ClientAddPingPeriod(bldr, c.PingPeriod())
-	ClientAddPongWait(bldr, c.PongWait())
-	ClientAddSaveInterval(bldr, c.SaveInterval())
-	bldr.Finish(ClientEnd(bldr))
+	ConfStart(bldr)
+	ConfAddHealthbeatInterval(bldr, c.HealthbeatInterval())
+	ConfAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
+	ConfAddPingPeriod(bldr, c.PingPeriod())
+	ConfAddPongWait(bldr, c.PongWait())
+	ConfAddSaveInterval(bldr, c.SaveInterval())
+	bldr.Finish(ConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Deserialize deserializes the bytes into the current Client.
-func (c *Client) Deserialize(p []byte) {
-	c = GetRootAsClient(p, 0)
+// Deserialize deserializes the bytes into the current Conf.
+func (c *Conf) Deserialize(p []byte) {
+	c = GetRootAsConf(p, 0)
 }

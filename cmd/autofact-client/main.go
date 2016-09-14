@@ -59,7 +59,7 @@ func realMain() int {
 	// to 0.  The server will provide the information.  The server also provides
 	// updated client settings.
 	// TODO: work out client inf setting management better.
-	inf, err := cfg.LoadSysInf(infFile)
+	inf, err := cfg.LoadNode(infFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -100,7 +100,7 @@ func realMain() int {
 		return 1
 	}
 	// save the client inf
-	err = c.SysInf.Save(infFile)
+	err = c.Node.Save(infFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "save client inf failed: %s\n", err)
 	}

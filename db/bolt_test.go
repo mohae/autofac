@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/boltdb/bolt"
+	"github.com/google/flatbuffers/go"
+	"github.com/mohae/autofact/cfg"
 )
 
 func TestBoltDB(t *testing.T) {
@@ -38,16 +40,21 @@ func TestBoltDB(t *testing.T) {
 
 	// Add clients to the bucket
 	IDs := []uint32{1, 11, 42}
+	bldr := flatbuffers.NewBuilder(0)
 	for _, v := range IDs {
-		err := db.SaveClient(v)
+		cfg.NodeStart(bldr)
+		cfg.NodeAddID(bldr, v)
+		bldr.Finish(cfg.NodeEnd(bldr))
+		err = db.SaveNode(cfg.GetRootAsNode(bldr.Bytes[bldr.Head():], 0))
 		if err != nil {
 			t.Errorf("expected no error; got %s", err)
 			return
 		}
+		bldr.Reset()
 	}
 
 	// get clients
-	ids, err := db.ClientIDs()
+	ids, err := db.NodeIDs()
 	if err != nil {
 		t.Errorf("expected no error; got %s", err)
 		return

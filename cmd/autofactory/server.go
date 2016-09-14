@@ -43,8 +43,8 @@ type server struct {
 	PingPeriod time.Duration
 	// How long to wait for a pong response before timing out
 	PongWait time.Duration
-	// Flatbuffers serialized default client config
-	ClientCfg []byte
+	// Flatbuffers serialized default client config.
+	ClientConf []byte
 	// A map of clients, by ID
 	Inventory inventory
 	// TODO: add handling to prevent the same client from connecting
@@ -67,12 +67,12 @@ func newServer(id uint32) server {
 // is a cached list of clients.
 func (s *server) LoadInventory() (int, error) {
 	var n int
-	sysinfs, err := s.DB.SysInfs()
+	nodes, err := s.DB.Nodes()
 	if err != nil {
 		return n, err
 	}
-	for i, c := range sysinfs {
-		s.Inventory.AddNodeInf(c.ID(), c)
+	for i, c := range nodes {
+		s.Inventory.AddNode(c.ID(), c)
 		n = i
 	}
 	return n, nil
@@ -85,71 +85,71 @@ func (s *server) connectToInfluxDB() error {
 	return err
 }
 
-// Node checks the inventory to see if the client exists.  If it exists,
-// a Node is created from the client in the inventory.
-func (s *server) Node(id uint32) (*Node, bool) {
-	inf, ok := s.Inventory.SysInf(id)
+// Client checks the inventory to see if the client exists.  If it exists,
+// a Client is created from the client in the inventory.
+func (s *server) Client(id uint32) (*Client, bool) {
+	c, ok := s.Inventory.Node(id)
 	if !ok {
 		return nil, false
 	}
-	return &Node{
-		SysInf:       inf,
-		Cfg:          cfg.GetRootAsClient(clientCfg, 0),
+	return &Client{
+		Node:         c,
+		Conf:         cfg.GetRootAsConf(clientConf, 0),
 		InfluxClient: s.InfluxClient,
 	}, true
 }
 
-// NewNode creates a new Node, adds it to the server's inventory and
-// returns the client.Inf to the caller.   If the save of the Node's inf to
+// NewClient creates a new Node, adds it to the server's inventory and
+// returns the client.Inf to the caller.   If the save of the Client's inf to
 // the database results in an error, it will be returned.
-func (s *server) NewNode() (*Node, error) {
+func (s *server) NewClient() (*Client, error) {
 	// get a new client
-	n := s.Inventory.NewNode()
-	n.InfluxClient = s.InfluxClient
+	c := s.Inventory.NewNode()
+	c.InfluxClient = s.InfluxClient
 	// save the client info to the db
-	err := s.DB.SaveSysInf(n.SysInf)
-	return n, err
+	err := s.DB.SaveNode(c.Node)
+	return c, err
 }
 
-// Node holds information about a client node.
-type Node struct {
-	*cfg.SysInf
-	Cfg *cfg.Client
-	WS  *websocket.Conn
+// Client holds information about a client.
+type Client struct {
+	*cfg.Node
+	*cfg.Conf
+	WS *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
 
-func newNode(id uint32) *Node {
+func newClient(id uint32) *Client {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.SysInfStart(bldr)
-	cfg.SysInfAddID(bldr, id)
-	bldr.Finish(cfg.SysInfEnd(bldr))
-	return &Node{
-		SysInf: cfg.GetRootAsSysInf(bldr.Bytes[bldr.Head():], 0),
-		Cfg:    cfg.GetRootAsClient(clientCfg, 0),
+	cfg.NodeStart(bldr)
+	cfg.NodeAddID(bldr, id)
+	bldr.Finish(cfg.NodeEnd(bldr))
+	return &Client{
+		Node: cfg.GetRootAsNode(bldr.Bytes[bldr.Head():], 0),
+		Conf: cfg.GetRootAsConf(clientConf, 0),
 	}
 }
 
 // PingHandler is the handler for Pings.
-func (n *Node) PingHandler(msg string) error {
+func (c *Client) PingHandler(msg string) error {
 	fmt.Printf("ping: %s\n", msg)
-	return n.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
+	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
 }
 
 // PongHandler is the handler for pongs.
-func (n *Node) PongHandler(msg string) error {
+func (c *Client) PongHandler(msg string) error {
 	fmt.Printf("pong: %s\n", msg)
-	return n.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
+	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
 // Listen listens for messages and handles them accordingly.  Binary messages
 // are expected to be  Flatbuffer serialized bytes containing a Message.
-func (n *Node) Listen(doneCh chan struct{}) {
+func (c *Client) Listen(doneCh chan struct{}) {
 	// loop until there's a done signal
 	defer close(doneCh)
 	for {
-		typ, p, err := n.WS.ReadMessage()
+		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 			if _, ok := err.(*websocket.CloseError); !ok {
@@ -165,7 +165,7 @@ func (n *Node) Listen(doneCh chan struct{}) {
 				// if this is an acknowledgement message, do nothing
 				continue
 			}
-			err := n.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
+			err := c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); !ok {
 					return
@@ -174,7 +174,7 @@ func (n *Node) Listen(doneCh chan struct{}) {
 				return
 			}
 		case websocket.BinaryMessage:
-			err = n.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
+			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
 				if _, ok := err.(*websocket.CloseError); !ok {
@@ -183,7 +183,7 @@ func (n *Node) Listen(doneCh chan struct{}) {
 				fmt.Println("client closed connection...waiting for reconnect")
 				return
 			}
-			n.processBinaryMessage(p)
+			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
 			fmt.Printf("closemessage: %x\n", p)
 			fmt.Println("client closed connection...waiting for reconnect")
@@ -194,24 +194,24 @@ func (n *Node) Listen(doneCh chan struct{}) {
 
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
-func (n *Node) WriteBinaryMessage(k message.Kind, p []byte) {
-	n.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(n.SysInf.ID(), k, p))
+func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.Node.ID(), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
 // TODO:  revisit design of tag and field handling; make pluggable for
 // backends other than influx?  Make more flexible, perhaps funcs to call or
 // define interface(s)
-func (n *Node) processBinaryMessage(p []byte) error {
+func (c *Client) processBinaryMessage(p []byte) error {
 	// unmarshal the message
 	msg := message.GetRootAsMessage(p, 0)
 	// process according to kind
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
-		fmt.Printf("%s: cpu utilization\n", n.SysInf.Hostname())
+		fmt.Printf("%s: cpu utilization\n", c.Node.Hostname())
 		cpus := cpuutil.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		var bErr error // this is the last error in the batch, if any
 		// Each cpu is it's own point, make a slice to accommodate them all and process.
 		pts := make([]*influx.Point, 0, len(cpus.CPU))
@@ -232,22 +232,22 @@ func (n *Node) processBinaryMessage(p []byte) error {
 			}
 			pts = append(pts, pt)
 		}
-		n.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
+		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 	case message.SysLoadAvg:
-		fmt.Printf("%s: loadavg\n", n.SysInf.Hostname())
+		fmt.Printf("%s: loadavg\n", c.Node.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		fields := map[string]interface{}{
 			"one":     l.One,
 			"five":    l.Five,
 			"fifteen": l.Fifteen,
 		}
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
-		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.SysMemInfo:
-		fmt.Printf("%s: meminfo\n", n.SysInf.Hostname())
+		fmt.Printf("%s: meminfo\n", c.Node.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		fields := map[string]interface{}{
 			"total_ram":  m.TotalRAM,
 			"free_ram":   m.FreeRAM,
@@ -257,11 +257,11 @@ func (n *Node) processBinaryMessage(p []byte) error {
 			"free_swap":  m.FreeSwap,
 		}
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
-		n.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.NetUsage:
-		fmt.Printf("%s: network usage\n", n.SysInf.Hostname())
+		fmt.Printf("%s: network usage\n", c.Node.Hostname())
 		ifaces := netf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(n.SysInf.Hostname()), "region": string(n.SysInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		var bErr error // the last error in the batch, if any
 		// Make a slice of points whose length is equal to the number of Interfaces
 		// and process the interfaces.
@@ -293,7 +293,7 @@ func (n *Node) processBinaryMessage(p []byte) error {
 			}
 			pts = append(pts, pt)
 		}
-		n.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
+		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))
@@ -319,7 +319,7 @@ type ClientCfg struct {
 	WriteWait               time.Duration `json:"-"`
 }
 
-// LoadClientCfg loads the client configuration from the specified file.
+// Load loads the client configuration from the specified file.
 func (c *ClientCfg) Load(cfgFile string) error {
 	b, err := ioutil.ReadFile(cfgFile)
 	if err != nil {
@@ -380,26 +380,22 @@ func (c *ClientCfg) SaveAsJSON(fname string) error {
 	return nil
 }
 
-// Serialize serializes the struct.  The flatbuffers definition for this
-// struct is in clientconf.fbs and the resulting definition is in
-// client/ClientConf.go
+// Serialize serializes the struct as a cfg.Conf.
 func (c *ClientCfg) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.ClientStart(bldr)
-	cfg.ClientAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	cfg.ClientAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	cfg.ClientAddPingPeriod(bldr, int64(c.PingPeriod))
-	cfg.ClientAddPongWait(bldr, int64(c.PongWait))
-	cfg.ClientAddSaveInterval(bldr, int64(c.SaveInterval))
-	bldr.Finish(cfg.ClientEnd(bldr))
+	cfg.ConfStart(bldr)
+	cfg.ConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
+	cfg.ConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
+	cfg.ConfAddPingPeriod(bldr, int64(c.PingPeriod))
+	cfg.ConfAddPongWait(bldr, int64(c.PongWait))
+	cfg.ConfAddSaveInterval(bldr, int64(c.SaveInterval))
+	bldr.Finish(cfg.ConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Deserialize deserializes the bytes into the struct.  The flatbuffers
-// definition for this struct is in cfg_client.fbs and the resulting
-// definition is in cfg/Client.go
+// Deserialize deserializes serialized cfg.Conf into ClientCfg.
 func (c *ClientCfg) Deserialize(p []byte) {
-	conf := cfg.GetRootAsClient(p, 0)
+	conf := cfg.GetRootAsConf(p, 0)
 	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
 	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
 	c.PingPeriod = time.Duration(conf.PingPeriod())

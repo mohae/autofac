@@ -22,8 +22,8 @@ func TestQueueing(t *testing.T) {
 		items       []QMessage
 	}{
 		{size: 2, enqueueLen: 2, enqueueHead: 0, dequeueCnt: 2, dequeueHead: 0, dequeueLen: 0, expectedCap: 2, items: []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}}},
-		{size: 2, enqueueLen: 5, enqueueHead: 0, dequeueCnt: 3, dequeueHead: 3, dequeueLen: 2, expectedCap: 8, items: []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{ClientInf, []byte{}}, QMessage{ClientCfg, []byte{}}, QMessage{CPUData, []byte{}}}},
-		{size: 2, enqueueLen: 4, enqueueHead: 0, dequeueCnt: 1, dequeueHead: 1, dequeueLen: 3, expectedCap: 4, items: []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{ClientInf, []byte{}}, QMessage{ClientCfg, []byte{}}}},
+		{size: 2, enqueueLen: 5, enqueueHead: 0, dequeueCnt: 3, dequeueHead: 3, dequeueLen: 2, expectedCap: 8, items: []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{SysInf, []byte{}}, QMessage{ClientConf, []byte{}}, QMessage{CPUUtilization, []byte{}}}},
+		{size: 2, enqueueLen: 4, enqueueHead: 0, dequeueCnt: 1, dequeueHead: 1, dequeueLen: 3, expectedCap: 4, items: []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{SysInf, []byte{}}, QMessage{ClientConf, []byte{}}}},
 	}
 	for i, test := range tests {
 		q := NewQueue(test.size)
@@ -70,7 +70,7 @@ func TestQIsEmpty(t *testing.T) {
 		isEmpty bool
 	}{
 		{4, []QMessage{}, true},
-		{4, []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{ClientInf, []byte{}}, QMessage{ClientCfg, []byte{}}}, false},
+		{4, []QMessage{QMessage{Generic, []byte{}}, QMessage{Command, []byte{}}, QMessage{SysInf, []byte{}}, QMessage{ClientConf, []byte{}}}, false},
 	}
 	for i, test := range tests {
 		q := NewQueue(test.size)

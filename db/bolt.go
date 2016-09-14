@@ -70,8 +70,8 @@ func (b *Bolt) CreateBuckets() error {
 	return nil
 }
 
-// ClientIDs returns all ClientIDs within the database.
-func (b *Bolt) ClientIDs() ([]uint32, error) {
+// NodeIDs returns all NodeIDs within the database.
+func (b *Bolt) NodeIDs() ([]uint32, error) {
 	var ids []uint32
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
@@ -90,9 +90,9 @@ func (b *Bolt) ClientIDs() ([]uint32, error) {
 	return ids, err
 }
 
-// SysInfs returns all the cfg.SysInfs within the database.
-func (b *Bolt) SysInfs() ([]*cfg.SysInf, error) {
-	var infs []*cfg.SysInf
+// Nodes returns all the cfg.Nodes within the database.
+func (b *Bolt) Nodes() ([]*cfg.Node, error) {
+	var nodes []*cfg.Node
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -101,15 +101,15 @@ func (b *Bolt) SysInfs() ([]*cfg.SysInf, error) {
 		c := b.Cursor()
 		// each value is a serialized client.Inf
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			infs = append(infs, cfg.GetRootAsSysInf(v, 0))
+			nodes = append(nodes, cfg.GetRootAsNode(v, 0))
 		}
 		return nil
 	})
-	return infs, err
+	return nodes, err
 }
 
-// SaveSysInf saves a cfg.SysInf in the client bucket.
-func (b *Bolt) SaveSysInf(c *cfg.SysInf) error {
+// SaveNode saves a cfg.Node in the client bucket.
+func (b *Bolt) SaveNode(c *cfg.Node) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		bid := make([]byte, 4)

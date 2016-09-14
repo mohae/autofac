@@ -1,7 +1,7 @@
-// sysinf.fbs
+// cfg_node.fbs
 namespace cfg;
 
-table SysInf {
+table Node {
 	ID:uint;
     Hostname:string;
 	Region:string;
@@ -9,4 +9,4 @@ table SysInf {
 	DataCenter:string;
 }
 
-root_type SysInf;
+root_type Node;

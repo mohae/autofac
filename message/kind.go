@@ -10,7 +10,7 @@ const (
 	Generic
 	Command
 	SysInf
-	ClientCfg
+	ClientConf
 	CPUUtilization // CPU Utilization information
 	SysLoadAvg     // Sysinfo based load avg
 	SysMemInfo     // Sysinfo based mem info

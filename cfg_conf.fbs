@@ -1,7 +1,7 @@
-// clientconf.fbs
+// cfg_conf.fbs
 namespace cfg;
 
-table Client {
+table Conf {
 	HealthbeatInterval: long;
     HealthbeatPushPeriod: long;
     PingPeriod: long;
@@ -9,4 +9,4 @@ table Client {
     SaveInterval: long;
 }
 
-root_type Client;
+root_type Conf;
