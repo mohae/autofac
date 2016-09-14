@@ -13,14 +13,12 @@ import (
 // Conn holds the connection information for a node.  This is all that is
 // persisted on a client node.
 type Conn struct {
-	ServerAddress      string        `json:"server_address"`
-	ServerPort         string        `json:"server_port"`
-	ServerID           uint32        `json:"server_id"`
-	RawConnectInterval string        `json:"connect_interval"`
-	ConnectInterval    time.Duration `json:"-"`
-	RawConnectPeriod   string        `json:"connect_period"`
-	ConnectPeriod      time.Duration `json:"-"`
-	filename           string
+	ServerAddress   string        `json:"server_address"`
+	ServerPort      string        `json:"server_port"`
+	ServerID        uint32        `json:"server_id"`
+	ConnectInterval time.Duration `json:"connect_interval"`
+	ConnectPeriod   time.Duration `json:"connect_period"`
+	filename        string
 }
 
 // LoadConn loads the config file.  Errors are logged but not returned.
@@ -34,14 +32,6 @@ func (c *Conn) Load(name string) error {
 	err = json.Unmarshal(b, &c)
 	if err != nil {
 		return fmt.Errorf("error unmarshaling confg file %s: %s", name, err)
-	}
-	c.ConnectInterval, err = time.ParseDuration(c.RawConnectInterval)
-	if err != nil {
-		return fmt.Errorf("error parsing connect interval: %s", err)
-	}
-	c.ConnectPeriod, err = time.ParseDuration(c.RawConnectPeriod)
-	if err != nil {
-		return fmt.Errorf("error parsing connect period: %s", err)
 	}
 	return nil
 }

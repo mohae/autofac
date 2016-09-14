@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
-	"strconv"
 	"time"
 
 	pcg "github.com/dgryski/go-pcgr"
@@ -80,30 +79,23 @@ func Int64ToByteSlice(x int64) []byte {
 }
 
 // Duration is an alias for time.Duration
-type Duration time.Duration
+type Duration struct {
+	time.Duration
+}
 
-// UnmarshalJSON takes a slice of bytes and converts it to a duration.  An
-// error is returned if  the slice of bytes doesn't contain a value that can
-// be parsed into a duration.
-// returned.
-func (d *Duration) UnmarshalJSON(data []byte) error {
-	if len(data) == 0 {
-		*d = 0
-		return nil
-	}
+// MarshalJSON marshal's the duration as a string.
+func (d Duration) MarshalJSON() ([]byte, error) {
+	return []byte(fmt.Sprintf(`"%s"`, d.String())), nil
+}
 
-	text := string(data)
-	t, err := time.ParseDuration(text)
-	if err == nil {
-		*d = Duration(t)
-		return nil
+// UnmarshalJSON unmarshals a string as a Duration.  If the value doesn't start
+// with a quote, ", an error will occur.  See time.ParseDuration for valid
+// values.
+func (d *Duration) UnmarshalJSON(b []byte) (err error) {
+	// If this is a string; parse it as such.
+	if b[0] != '"' {
+		return fmt.Errorf("duration: unable to UnmarshalJSON not a string: %v", b)
 	}
-	i, err := strconv.ParseInt(text, 10, 64)
-	if err == nil {
-		*d = Duration(time.Duration(i) * time.Second)
-		return nil
-	}
-	f, err := strconv.ParseFloat(text, 64)
-	*d = Duration(time.Duration(f) * time.Second)
+	d.Duration, err = time.ParseDuration(string(b[1 : len(b)-1]))
 	return err
 }

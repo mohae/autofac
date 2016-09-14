@@ -25,9 +25,9 @@ import (
 // Defaults for ClientCfg: if file doesn't exist.  Ping/Pong defaults come
 // from autofact.
 var (
-	DefaultHealthbeatInterval   = time.Duration(5) * time.Second
-	DefaultHealthbeatPushPeriod = time.Duration(15) * time.Second
-	DefaultSaveInterval         = time.Duration(30) * time.Second
+	DefaultHealthbeatInterval   = 5 * time.Second
+	DefaultHealthbeatPushPeriod = 15 * time.Second
+	DefaultSaveInterval         = 30 * time.Second
 )
 
 // server is the container for a server's information and everything that it
