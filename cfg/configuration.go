@@ -110,8 +110,6 @@ func (c *Conf) Serialize() []byte {
 	ConfStart(bldr)
 	ConfAddHealthbeatInterval(bldr, c.HealthbeatInterval())
 	ConfAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	ConfAddPingPeriod(bldr, c.PingPeriod())
-	ConfAddPongWait(bldr, c.PongWait())
 	ConfAddSaveInterval(bldr, c.SaveInterval())
 	bldr.Finish(ConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]

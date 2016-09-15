@@ -99,9 +99,6 @@ func realMain() int {
 	// start the go routines first
 	go c.Listen(doneCh)
 	go c.Healthbeat()
-	// start the healthbeat monitoring
-	c.WS.SetPongHandler(c.PongHandler)
-	c.WS.SetPingHandler(c.PingHandler)
 	// start the connection handler
 	go c.MessageWriter(doneCh)
 	// if connected, save the cfg: this will also save the ClientID

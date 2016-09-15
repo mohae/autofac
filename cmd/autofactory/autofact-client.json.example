@@ -1,7 +1,5 @@
 {
 	"healthbeat_interval": "5s",
 	"healthbeat_push_period": "15s",
-	"ping_period": "25s",
-	"pong_wait": "30s",
 	"save_interval": "10s"
 }

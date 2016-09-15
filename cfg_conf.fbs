@@ -4,8 +4,6 @@ namespace cfg;
 table Conf {
 	HealthbeatInterval: long;
     HealthbeatPushPeriod: long;
-    PingPeriod: long;
-    PongWait: long;
     SaveInterval: long;
 }
 

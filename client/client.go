@@ -141,7 +141,6 @@ func (c *Client) DialServer() error {
 }
 
 func (c *Client) MessageWriter(doneCh chan struct{}) {
-	pingPeriod := time.Duration(c.Conf.PingPeriod())
 	defer close(doneCh)
 	for {
 		select {
@@ -159,15 +158,7 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
 			}
-		case <-time.After(pingPeriod):
-			// only ping if we are connected
-			if !c.IsConnected() {
-				continue
-			}
-			err := c.WS.WriteMessage(websocket.PingMessage, []byte("ping"))
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "ping error: %s\n", err)
-			}
+			// TODO does this need to handle healthbeat?
 		}
 	}
 }
@@ -260,20 +251,6 @@ func (c *Client) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.isConnected
-}
-
-func (c *Client) PingHandler(msg string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	fmt.Printf("ping: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
-}
-
-func (c *Client) PongHandler(msg string) error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	fmt.Printf("pong: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
 // Healthbeat gathers basic system stats at a given interval.

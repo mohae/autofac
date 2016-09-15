@@ -111,9 +111,6 @@ func realMain() int {
 
 	clientConf = cCfg.Serialize()
 	srvr.ClientConf = clientConf
-	// Ther server PingPeriod and PongWait should be the same as the clients
-	srvr.PingPeriod = cCfg.PingPeriod
-	srvr.PongWait = cCfg.PongWait
 
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open(*bDBFile)

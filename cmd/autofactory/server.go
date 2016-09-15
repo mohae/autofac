@@ -22,8 +22,7 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
-// Defaults for ClientCfg: if file doesn't exist.  Ping/Pong defaults come
-// from autofact.
+// Defaults for ClientCfg: if file doesn't exist.
 var (
 	DefaultHealthbeatInterval   = 5 * time.Second
 	DefaultHealthbeatPushPeriod = 15 * time.Second
@@ -39,10 +38,6 @@ type server struct {
 	ID uint32
 	// URL of the server
 	url.URL
-	// Period between pings
-	PingPeriod time.Duration
-	// How long to wait for a pong response before timing out
-	PongWait time.Duration
 	// Flatbuffers serialized default client config.
 	ClientConf []byte
 	// A map of clients, by ID
@@ -129,18 +124,6 @@ func newClient(id uint32) *Client {
 		Node: cfg.GetRootAsNode(bldr.Bytes[bldr.Head():], 0),
 		Conf: cfg.GetRootAsConf(clientConf, 0),
 	}
-}
-
-// PingHandler is the handler for Pings.
-func (c *Client) PingHandler(msg string) error {
-	fmt.Printf("ping: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PongMessage, []byte("ping"))
-}
-
-// PongHandler is the handler for pongs.
-func (c *Client) PongHandler(msg string) error {
-	fmt.Printf("pong: %s\n", msg)
-	return c.WS.WriteMessage(websocket.PingMessage, []byte("pong"))
 }
 
 // Listen listens for messages and handles them accordingly.  Binary messages
@@ -310,10 +293,6 @@ type ClientCfg struct {
 	HealthbeatInterval      time.Duration `json:"-"`
 	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
 	HealthbeatPushPeriod    time.Duration `json:"-"`
-	RawPingPeriod           string        `json:"ping_period"`
-	PingPeriod              time.Duration `json:"-"`
-	RawPongWait             string        `json:"pong_wait"`
-	PongWait                time.Duration `json:"-"`
 	RawSaveInterval         string        `json:"save_interval"`
 	SaveInterval            time.Duration `json:"-"`
 	WriteWait               time.Duration `json:"-"`
@@ -341,14 +320,6 @@ func (c *ClientCfg) Load(cfgFile string) error {
 	if err != nil {
 		return fmt.Errorf("error parsing save interval %s", err)
 	}
-	c.PingPeriod, err = time.ParseDuration(c.RawPingPeriod)
-	if err != nil {
-		return fmt.Errorf("error parsing ping period %s", err)
-	}
-	c.PongWait, err = time.ParseDuration(c.RawPongWait)
-	if err != nil {
-		return fmt.Errorf("error parsing pong wait %s", err)
-	}
 	return nil
 }
 
@@ -359,10 +330,6 @@ func (c *ClientCfg) UseAppDefaults() {
 	c.HealthbeatInterval = DefaultHealthbeatInterval
 	c.RawHealthbeatPushPeriod = DefaultHealthbeatPushPeriod.String()
 	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
-	c.RawPingPeriod = autofact.DefaultPingPeriod.String()
-	c.PingPeriod = autofact.DefaultPingPeriod
-	c.RawPongWait = autofact.DefaultPongWait.String()
-	c.PongWait = autofact.DefaultPongWait
 	c.RawSaveInterval = DefaultSaveInterval.String()
 	c.SaveInterval = DefaultSaveInterval
 	// WriteWait isn't set because it isn't being used yet.
@@ -386,8 +353,6 @@ func (c *ClientCfg) Serialize() []byte {
 	cfg.ConfStart(bldr)
 	cfg.ConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
 	cfg.ConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	cfg.ConfAddPingPeriod(bldr, int64(c.PingPeriod))
-	cfg.ConfAddPongWait(bldr, int64(c.PongWait))
 	cfg.ConfAddSaveInterval(bldr, int64(c.SaveInterval))
 	bldr.Finish(cfg.ConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
@@ -398,7 +363,5 @@ func (c *ClientCfg) Deserialize(p []byte) {
 	conf := cfg.GetRootAsConf(p, 0)
 	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
 	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
-	c.PingPeriod = time.Duration(conf.PingPeriod())
-	c.PongWait = time.Duration(conf.PongWait())
 	c.SaveInterval = time.Duration(conf.SaveInterval())
 }

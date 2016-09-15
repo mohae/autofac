@@ -37,7 +37,7 @@ func (rcv *Conf) HealthbeatPushPeriod() int64 {
 	return 0
 }
 
-func (rcv *Conf) PingPeriod() int64 {
+func (rcv *Conf) SaveInterval() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(8))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -45,26 +45,8 @@ func (rcv *Conf) PingPeriod() int64 {
 	return 0
 }
 
-func (rcv *Conf) PongWait() int64 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(10))
-	if o != 0 {
-		return rcv._tab.GetInt64(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func (rcv *Conf) SaveInterval() int64 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(12))
-	if o != 0 {
-		return rcv._tab.GetInt64(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func ConfStart(builder *flatbuffers.Builder) { builder.StartObject(5) }
+func ConfStart(builder *flatbuffers.Builder) { builder.StartObject(3) }
 func ConfAddHealthbeatInterval(builder *flatbuffers.Builder, HealthbeatInterval int64) { builder.PrependInt64Slot(0, HealthbeatInterval, 0) }
 func ConfAddHealthbeatPushPeriod(builder *flatbuffers.Builder, HealthbeatPushPeriod int64) { builder.PrependInt64Slot(1, HealthbeatPushPeriod, 0) }
-func ConfAddPingPeriod(builder *flatbuffers.Builder, PingPeriod int64) { builder.PrependInt64Slot(2, PingPeriod, 0) }
-func ConfAddPongWait(builder *flatbuffers.Builder, PongWait int64) { builder.PrependInt64Slot(3, PongWait, 0) }
-func ConfAddSaveInterval(builder *flatbuffers.Builder, SaveInterval int64) { builder.PrependInt64Slot(4, SaveInterval, 0) }
+func ConfAddSaveInterval(builder *flatbuffers.Builder, SaveInterval int64) { builder.PrependInt64Slot(2, SaveInterval, 0) }
 func ConfEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT { return builder.EndObject() }

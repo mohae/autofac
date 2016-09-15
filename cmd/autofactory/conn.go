@@ -98,9 +98,6 @@ sendInf:
 	c.WriteBinaryMessage(message.ClientConf, srvr.ClientConf)
 	// send EOM
 	c.WriteBinaryMessage(message.EOT, nil)
-	// set the ping hanlder
-	c.WS.SetPingHandler(c.PingHandler)
-	c.WS.SetPingHandler(c.PongHandler)
 	// start a message handler for the client
 	doneCh := make(chan struct{})
 	go c.Listen(doneCh)
