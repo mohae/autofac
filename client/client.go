@@ -11,7 +11,6 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/cfg"
-	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
@@ -31,8 +30,6 @@ type Client struct {
 	cfg.Conn
 	// Conf holds the client configuration (how the client behaves).
 	*cfg.Conf
-	// DB conn for clients
-	DB db.Bolt
 
 	// queue of healthbeat messages to be sent.
 	healthbeatQ message.Queue

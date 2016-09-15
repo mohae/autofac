@@ -14,17 +14,18 @@ import (
 )
 
 var cfgFile = "autofact-client.json"
-var infFile = "autoinf.dat"
+var infFile = "autofact.dat" // contains the node id and other info as serialized data
 
 // This is the default directory for autofact-client app data.
 var defaultAutoFactDir = "$HOME/.autofact"
-var bDBFile = "autofact.bdb" // bolt database file
 
 // default
 var connCfg cfg.Conn
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
 // to handle this after the next refactor of contour.
+// TODO: make connectInterval/period handling consistent, e.g. should they be
+// flags, what is precedence in relation to Conn?
 func init() {
 	flag.StringVar(&connCfg.ServerAddress, "address", "127.0.0.1", "the server address")
 	flag.StringVar(&connCfg.ServerAddress, "a", "127.0.0.1", "the server address (short)")
@@ -53,7 +54,6 @@ func realMain() int {
 	}
 	cfgFile = filepath.Join(autopath, cfgFile)
 	infFile = filepath.Join(autopath, infFile)
-	bDBFile = filepath.Join(autopath, bDBFile)
 	// Load the client's information; if it can't be found or doesn't exist, e.g.
 	// is a new client, a serialized client.Inf is returned with the client id set
 	// to 0.  The server will provide the information.  The server also provides
@@ -73,14 +73,6 @@ func realMain() int {
 		c.Conn = connCfg
 		c.Conn.SetFilename(cfgFile)
 	}
-
-	// open the database file
-	err = c.DB.Open(bDBFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
-		return 1
-	}
-	defer c.DB.DB.Close()
 
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
