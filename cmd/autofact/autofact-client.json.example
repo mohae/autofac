@@ -1,8 +1,0 @@
-{
-	"id": 2800260575,
-	"server_address": "127.0.0.1",
-	"server_port": "8675",
-	"server_id": 0,
-	"connect_interval": "5s",
-	"connect_period": "15m"
-}
