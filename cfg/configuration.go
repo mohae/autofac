@@ -19,6 +19,7 @@ type Conn struct {
 	ConnectInterval time.Duration `json:"connect_interval"`
 	ConnectPeriod   time.Duration `json:"connect_period"`
 	filename        string
+	Conf
 }
 
 // LoadConn loads the config file.  Errors are logged but not returned.
@@ -60,9 +61,9 @@ func (c *Conn) SetFilename(v string) {
 	c.filename = v
 }
 
-// LoadNode loads the cfg.Node from the received file.  If it doesn't exist
-// a basic inf with its ID set to 0  and current hostname set is returned.
-func LoadNode(name string) (*Node, error) {
+// LoadNodeInf loads the cfg.NodeInf from the file specified.  If it doesn't
+// exist, a NodeInf with its ID set to 0 and the current hostname is returned.
+func LoadNodeInf(name string) (*NodeInf, error) {
 	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		bldr := flatbuffers.NewBuilder(0)
@@ -71,51 +72,51 @@ func LoadNode(name string) (*Node, error) {
 			return nil, fmt.Errorf("load node inf failed: could not determine hostname: %s\n", err)
 		}
 		h := bldr.CreateString(hostname)
-		NodeStart(bldr)
-		NodeAddID(bldr, 0)
-		NodeAddHostname(bldr, h)
-		bldr.Finish(NodeEnd(bldr))
-		return GetRootAsNode(bldr.Bytes[bldr.Head():], 0), nil
+		NodeInfStart(bldr)
+		NodeInfAddID(bldr, 0)
+		NodeInfAddHostname(bldr, h)
+		bldr.Finish(NodeInfEnd(bldr))
+		return GetRootAsNodeInf(bldr.Bytes[bldr.Head():], 0), nil
 	}
-	return GetRootAsNode(b, 0), nil
+	return GetRootAsNodeInf(b, 0), nil
 }
 
 // Serialize serializes the Node using flatbuffers and returns the []byte.
-func (n *Node) Serialize() []byte {
+func (n *NodeInf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	h := bldr.CreateByteString(n.Hostname())
 	r := bldr.CreateByteString(n.Region())
 	z := bldr.CreateByteString(n.Zone())
 	d := bldr.CreateByteString(n.DataCenter())
-	NodeStart(bldr)
-	NodeAddID(bldr, n.ID())
-	NodeAddHostname(bldr, h)
-	NodeAddRegion(bldr, r)
-	NodeAddZone(bldr, z)
-	NodeAddDataCenter(bldr, d)
-	bldr.Finish(NodeEnd(bldr))
+	NodeInfStart(bldr)
+	NodeInfAddID(bldr, n.ID())
+	NodeInfAddHostname(bldr, h)
+	NodeInfAddRegion(bldr, r)
+	NodeInfAddZone(bldr, z)
+	NodeInfAddDataCenter(bldr, d)
+	bldr.Finish(NodeInfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
 // Save the current Node to a file.
-func (n *Node) Save(fname string) error {
+func (n *NodeInf) Save(fname string) error {
 	return ioutil.WriteFile(fname, n.Serialize(), 0600)
 }
 
 // Serialize serializes the struct.  The flatbuffers definition for this
-// struct is in autofact/cfg_conf.fbs and the resulting definition is in
-// cfg/Conf.go
-func (c *Conf) Serialize() []byte {
+// struct is in autofact/cfg_clientConf.fbs and the resulting definition is in
+// cfg/ClientConf.go
+func (c *ClientConf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	ConfStart(bldr)
-	ConfAddHealthbeatInterval(bldr, c.HealthbeatInterval())
-	ConfAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	ConfAddSaveInterval(bldr, c.SaveInterval())
-	bldr.Finish(ConfEnd(bldr))
+	ClientConfStart(bldr)
+	ClientConfAddHealthbeatInterval(bldr, c.HealthbeatInterval())
+	ClientConfAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
+	ClientConfAddSaveInterval(bldr, c.SaveInterval())
+	bldr.Finish(ClientConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
 // Deserialize deserializes the bytes into the current Conf.
-func (c *Conf) Deserialize(p []byte) {
-	c = GetRootAsConf(p, 0)
+func (c *ClientConf) Deserialize(p []byte) {
+	c = GetRootAsClientConf(p, 0)
 }
