@@ -51,10 +51,10 @@ func realMain() int {
 	}
 	autofactPath = os.ExpandEnv(autofactPath)
 
-	// make sure the autopath exists (create if it doesn't)
+	// make sure the autofact path exists (create if it doesn't)
 	err := os.MkdirAll(autofactPath, 0760)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to create Autopath dir: %s\n", err)
+		fmt.Fprintf(os.Stderr, "unable to create AUTOFACT_PATH dir: %s\n", err)
 		return 1
 	}
 
