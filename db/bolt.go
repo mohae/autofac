@@ -91,8 +91,8 @@ func (b *Bolt) NodeIDs() ([]uint32, error) {
 }
 
 // Nodes returns all the cfg.Nodes within the database.
-func (b *Bolt) Nodes() ([]*cfg.Node, error) {
-	var nodes []*cfg.Node
+func (b *Bolt) Nodes() ([]*cfg.NodeInf, error) {
+	var nodes []*cfg.NodeInf
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -101,7 +101,7 @@ func (b *Bolt) Nodes() ([]*cfg.Node, error) {
 		c := b.Cursor()
 		// each value is a serialized client.Inf
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			nodes = append(nodes, cfg.GetRootAsNode(v, 0))
+			nodes = append(nodes, cfg.GetRootAsNodeInf(v, 0))
 		}
 		return nil
 	})
@@ -109,7 +109,7 @@ func (b *Bolt) Nodes() ([]*cfg.Node, error) {
 }
 
 // SaveNode saves a cfg.Node in the client bucket.
-func (b *Bolt) SaveNode(c *cfg.Node) error {
+func (b *Bolt) SaveNode(c *cfg.NodeInf) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		bid := make([]byte, 4)

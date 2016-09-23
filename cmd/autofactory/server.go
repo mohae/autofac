@@ -88,8 +88,8 @@ func (s *server) Client(id uint32) (*Client, bool) {
 		return nil, false
 	}
 	return &Client{
-		Node:         c,
-		Conf:         cfg.GetRootAsConf(clientConf, 0),
+		NodeInf:      c,
+		ClientConf:   cfg.GetRootAsClientConf(clientConf, 0),
 		InfluxClient: s.InfluxClient,
 	}, true
 }
@@ -102,14 +102,14 @@ func (s *server) NewClient() (*Client, error) {
 	c := s.Inventory.NewNode()
 	c.InfluxClient = s.InfluxClient
 	// save the client info to the db
-	err := s.DB.SaveNode(c.Node)
+	err := s.DB.SaveNode(c.NodeInf)
 	return c, err
 }
 
 // Client holds information about a client.
 type Client struct {
-	*cfg.Node
-	*cfg.Conf
+	*cfg.NodeInf
+	*cfg.ClientConf
 	WS *websocket.Conn
 	*InfluxClient
 	isConnected bool
@@ -117,12 +117,12 @@ type Client struct {
 
 func newClient(id uint32) *Client {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.NodeStart(bldr)
-	cfg.NodeAddID(bldr, id)
-	bldr.Finish(cfg.NodeEnd(bldr))
+	cfg.NodeInfStart(bldr)
+	cfg.NodeInfAddID(bldr, id)
+	bldr.Finish(cfg.NodeInfEnd(bldr))
 	return &Client{
-		Node: cfg.GetRootAsNode(bldr.Bytes[bldr.Head():], 0),
-		Conf: cfg.GetRootAsConf(clientConf, 0),
+		NodeInf:    cfg.GetRootAsNodeInf(bldr.Bytes[bldr.Head():], 0),
+		ClientConf: cfg.GetRootAsClientConf(clientConf, 0),
 	}
 }
 
@@ -178,7 +178,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.Node.ID(), k, p))
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.NodeInf.ID(), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -192,9 +192,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
-		fmt.Printf("%s: cpu utilization\n", c.Node.Hostname())
+		fmt.Printf("%s: cpu utilization\n", c.NodeInf.Hostname())
 		cpus := cpuutil.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
 		var bErr error // this is the last error in the batch, if any
 		// Each cpu is it's own point, make a slice to accommodate them all and process.
 		pts := make([]*influx.Point, 0, len(cpus.CPU))
@@ -217,9 +217,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		}
 		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 	case message.SysLoadAvg:
-		fmt.Printf("%s: loadavg\n", c.Node.Hostname())
+		fmt.Printf("%s: loadavg\n", c.NodeInf.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
 		fields := map[string]interface{}{
 			"one":     l.One,
 			"five":    l.Five,
@@ -228,9 +228,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.SysMemInfo:
-		fmt.Printf("%s: meminfo\n", c.Node.Hostname())
+		fmt.Printf("%s: meminfo\n", c.NodeInf.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
 		fields := map[string]interface{}{
 			"total_ram":  m.TotalRAM,
 			"free_ram":   m.FreeRAM,
@@ -242,9 +242,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.NetUsage:
-		fmt.Printf("%s: network usage\n", c.Node.Hostname())
+		fmt.Printf("%s: network usage\n", c.NodeInf.Hostname())
 		ifaces := netf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
 		var bErr error // the last error in the batch, if any
 		// Make a slice of points whose length is equal to the number of Interfaces
 		// and process the interfaces.
@@ -350,17 +350,17 @@ func (c *ClientCfg) SaveAsJSON(fname string) error {
 // Serialize serializes the struct as a cfg.Conf.
 func (c *ClientCfg) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.ConfStart(bldr)
-	cfg.ConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	cfg.ConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	cfg.ConfAddSaveInterval(bldr, int64(c.SaveInterval))
-	bldr.Finish(cfg.ConfEnd(bldr))
+	cfg.ClientConfStart(bldr)
+	cfg.ClientConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
+	cfg.ClientConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
+	cfg.ClientConfAddSaveInterval(bldr, int64(c.SaveInterval))
+	bldr.Finish(cfg.ClientConfEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
 // Deserialize deserializes serialized cfg.Conf into ClientCfg.
 func (c *ClientCfg) Deserialize(p []byte) {
-	conf := cfg.GetRootAsConf(p, 0)
+	conf := cfg.GetRootAsClientConf(p, 0)
 	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
 	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
 	c.SaveInterval = time.Duration(conf.SaveInterval())

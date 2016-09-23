@@ -44,8 +44,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 	var c *Client
 	var ok bool
-	// the bytes are cfg.Node
-	n := cfg.GetRootAsNode(p, 0)
+	// the bytes are cfg.NodeInf
+	n := cfg.GetRootAsNodeInf(p, 0)
 	if n.ID() == 0 {
 		// get a new client and its ID
 		c, err = srvr.NewClient()
@@ -72,24 +72,24 @@ sendInf:
 	rr := bldr.CreateByteString(n.Region())
 	z := bldr.CreateByteString(n.Zone())
 	d := bldr.CreateByteString(n.DataCenter())
-	cfg.NodeStart(bldr)
-	cfg.NodeAddID(bldr, c.Node.ID())
-	cfg.NodeAddHostname(bldr, h)
-	cfg.NodeAddRegion(bldr, rr)
-	cfg.NodeAddZone(bldr, z)
-	cfg.NodeAddDataCenter(bldr, d)
-	bldr.Finish(cfg.NodeEnd(bldr))
+	cfg.NodeInfStart(bldr)
+	cfg.NodeInfAddID(bldr, c.NodeInf.ID())
+	cfg.NodeInfAddHostname(bldr, h)
+	cfg.NodeInfAddRegion(bldr, rr)
+	cfg.NodeInfAddZone(bldr, z)
+	cfg.NodeInfAddDataCenter(bldr, d)
+	bldr.Finish(cfg.NodeInfEnd(bldr))
 	b := bldr.Bytes[bldr.Head():]
-	c.Node = cfg.GetRootAsNode(b, 0)
+	c.NodeInf = cfg.GetRootAsNodeInf(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", c.Node.ID(), err)
+		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", c.NodeInf.ID(), err)
 		return
 	}
 
-	fmt.Printf("%X connected\n", c.Node.ID())
+	fmt.Printf("%X connected\n", c.NodeInf.ID())
 
 	// save the client inf to the inventory
-	srvr.Inventory.SaveNode(c.Node, b)
+	srvr.Inventory.SaveNode(c.NodeInf, b)
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf

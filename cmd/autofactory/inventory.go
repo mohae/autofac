@@ -7,20 +7,20 @@ import (
 	"github.com/mohae/autofact/util"
 )
 
-// inventory holds a list of all the Nodes that the server knows of.
+// inventory holds information about all of the nodes the system knows about.
 type inventory struct {
-	nodes map[uint32]*cfg.Node
+	nodes map[uint32]*cfg.NodeInf
 	mu    sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		nodes: map[uint32]*cfg.Node{},
+		nodes: map[uint32]*cfg.NodeInf{},
 	}
 }
 
-// AddNode adds the received *cfg.Node to the inventory.
-func (i *inventory) AddNode(id uint32, c *cfg.Node) {
+// AddNode adds a node's information to the inventory.
+func (i *inventory) AddNode(id uint32, c *cfg.NodeInf) {
 	// TODO: should collision detection be done/force update cfg.Node
 	// if it exists? or generate an error?
 	i.mu.Lock()
@@ -28,18 +28,17 @@ func (i *inventory) AddNode(id uint32, c *cfg.Node) {
 	i.mu.Unlock()
 }
 
-// SaveNode updates the inventory with the cfg.Node and saves it to the
-// database.
-func (i *inventory) SaveNode(c *cfg.Node, p []byte) error {
+// SaveNode updates the inventory with a node's information and saves it to
+// the database.
+func (i *inventory) SaveNode(c *cfg.NodeInf, p []byte) error {
 	i.mu.Lock()
 	i.nodes[c.ID()] = c
 	i.mu.Unlock()
 	return srvr.DB.SaveNode(c)
 }
 
-// NodeExists returns whether or not the node is currently in the inventory.
-// This function handles the locking and calls the unexported nodeExists for
-// the actual lookup.
+// NodeExists returns whether or not a specific node is currently in the
+// inventory.
 func (i *inventory) NodeExists(id uint32) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
@@ -47,17 +46,16 @@ func (i *inventory) NodeExists(id uint32) bool {
 }
 
 // nodeExists returns whether or not the requrested ID is in the inventory.
-// This does not do any locking because there are methods that already have
-// a lock on the inventory that need to check for existence.  External callers
-// should use NodeExists().
+// This does not do any locking; it is assumed that the color is properly
+// managing the lock's state properly.
 func (i *inventory) nodeExists(id uint32) bool {
 	_, ok := i.nodes[id]
 	return ok
 }
 
-// Node returns the *cfg.Node for the requested ID and wither or not the ID
-// was found in the inventory.
-func (i *inventory) Node(id uint32) (*cfg.Node, bool) {
+// Node returns true and the information for the requested ID, if it exists,
+// otherwise false is returned.
+func (i *inventory) Node(id uint32) (*cfg.NodeInf, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	c, ok := i.nodes[id]
@@ -73,7 +71,7 @@ func (i *inventory) NewNode() *Client {
 		id := util.RandUint32()
 		if !i.nodeExists(id) {
 			n := newClient(id)
-			i.nodes[id] = n.Node
+			i.nodes[id] = n.NodeInf
 			return n
 		}
 	}
