@@ -22,13 +22,14 @@ type Conn struct {
 	Conf
 }
 
-// LoadConn loads the config file.  Errors are logged but not returned.
+// LoadConn loads the config file.  The Conn's filename is set during this
+// operation.
 // TODO: revisit this design decision.
 func (c *Conn) Load(name string) error {
 	c.filename = name
 	b, err := ioutil.ReadFile(name)
 	if err != nil {
-		return fmt.Errorf("read of config file failed: %s", err)
+		return err
 	}
 	err = json.Unmarshal(b, &c)
 	if err != nil {

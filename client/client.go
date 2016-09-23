@@ -23,13 +23,13 @@ type Client struct {
 	// The Autofact Path
 	AutoPath string
 	// Node holds the basic client information.
-	*cfg.Node
+	*cfg.NodeInf
 	// This is Node as bytes: this is hopefully unnecessary, but I don't know at this point.
 	NodeBytes []byte
 	// Conn holds the configuration for connecting to the server.
 	cfg.Conn
 	// Conf holds the client configuration (how the client behaves).
-	*cfg.Conf
+	*cfg.ClientConf
 
 	// queue of healthbeat messages to be sent.
 	healthbeatQ message.Queue
@@ -47,9 +47,9 @@ type Client struct {
 	ServerURL   url.URL
 }
 
-func New(c *cfg.Node) *Client {
+func New(c *cfg.NodeInf) *Client {
 	return &Client{
-		Node:        c,
+		NodeInf:     c,
 		healthbeatQ: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
@@ -110,9 +110,9 @@ handshake:
 			msg := message.GetRootAsMessage(p, 0)
 			switch message.Kind(msg.Kind()) {
 			case message.SysInf:
-				c.Node = cfg.GetRootAsNode(msg.DataBytes(), 0)
+				c.NodeInf = cfg.GetRootAsNodeInf(msg.DataBytes(), 0)
 			case message.ClientConf:
-				c.Conf = cfg.GetRootAsConf(msg.DataBytes(), 0)
+				c.ClientConf = cfg.GetRootAsClientConf(msg.DataBytes(), 0)
 			case message.EOT:
 				break handshake
 			default:
@@ -127,7 +127,7 @@ handshake:
 			return false
 		}
 	}
-	fmt.Printf("%X connected\n", c.Node.ID())
+	fmt.Printf("%X connected\n", c.NodeInf.ID())
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
@@ -259,13 +259,13 @@ func (c *Client) IsConnected() bool {
 // generated.
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
-	if c.Conf.HealthbeatInterval() == 0 {
+	if c.ClientConf.HealthbeatInterval() == 0 {
 		return
 	}
 	// error channel
 	errCh := make(chan error)
 	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.ClientConf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -275,7 +275,7 @@ func (c *Client) Healthbeat() {
 	defer cpuTickr.Close()
 	defer cpuTickr.Stop()
 	// ticker for loadavg data
-	loadTicker, err := loadf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	loadTicker, err := loadf.NewTicker(time.Duration(c.ClientConf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -285,7 +285,7 @@ func (c *Client) Healthbeat() {
 	defer loadTickr.Close()
 	defer loadTickr.Stop()
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	memTicker, err := memf.NewTicker(time.Duration(c.ClientConf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -295,7 +295,7 @@ func (c *Client) Healthbeat() {
 	defer memTickr.Close()
 	defer memTickr.Stop()
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	netTicker, err := netf.NewTicker(time.Duration(c.ClientConf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -306,7 +306,7 @@ func (c *Client) Healthbeat() {
 	defer netTickr.Stop()
 	//	go mem.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), memCh, doneCh, errCh)
 	//	go net.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), netdevCh, doneCh, errCh)
-	t := time.NewTicker(time.Duration(c.Conf.HealthbeatPushPeriod()))
+	t := time.NewTicker(time.Duration(c.ClientConf.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {
@@ -360,14 +360,14 @@ func (c *Client) SendHealthbeatMessages() error {
 		if !ok { // nothing left to send
 			break
 		}
-		c.SendB <- message.Serialize(c.Node.ID(), m.Kind, m.Data)
+		c.SendB <- message.Serialize(c.NodeInf.ID(), m.Kind, m.Data)
 	}
 	return nil
 }
 
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.SendB <- message.Serialize(c.Node.ID(), kind, p)
+	c.SendB <- message.Serialize(c.NodeInf.ID(), kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -378,7 +378,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.ClientConf:
-		c.Conf.Deserialize(msg.DataBytes())
+		c.ClientConf.Deserialize(msg.DataBytes())
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))

@@ -8,31 +8,35 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/cfg"
 	"github.com/mohae/autofact/client"
 )
 
-var cfgFile = "autofact-client.json"
-var infFile = "autofact.dat" // contains the node id and other info as serialized data
-
-// This is the default directory for autofact-client app data.
-var defaultAutoFactDir = "$HOME/.autofact"
-
-// default
-var connCfg cfg.Conn
+var (
+	connFile = "autofact.json"
+	infFile  = "autofact.dat" // contains the node id and other info as serialized data
+	// This is the default directory for autofact-client app data.
+	autofactPath    = "$HOME/.autofact"
+	autofactEnvName = "AUTOFACT_PATH"
+	// default
+	connCfg    cfg.Conn
+	addressVar = "address"
+	aVar       = "a"
+	portVar    = "port"
+	pVar       = "p"
+)
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
 // to handle this after the next refactor of contour.
 // TODO: make connectInterval/period handling consistent, e.g. should they be
 // flags, what is precedence in relation to Conn?
 func init() {
-	flag.StringVar(&connCfg.ServerAddress, "address", "127.0.0.1", "the server address")
-	flag.StringVar(&connCfg.ServerAddress, "a", "127.0.0.1", "the server address (short)")
-	flag.StringVar(&connCfg.ServerPort, "port", "8675", "the connection port")
-	flag.StringVar(&connCfg.ServerPort, "p", "8675", "the connection port (short)")
-	connCfg.ConnectInterval = time.Duration(5) * time.Second
-	connCfg.ConnectPeriod = time.Duration(15) * time.Minute
+	flag.StringVar(&connCfg.ServerAddress, addressVar, "127.0.0.1", "the server address")
+	flag.StringVar(&connCfg.ServerAddress, aVar, "127.0.0.1", "the server address (short)")
+	flag.StringVar(&connCfg.ServerPort, portVar, "8675", "the connection port")
+	flag.StringVar(&connCfg.ServerPort, pVar, "8675", "the connection port (short)")
+	connCfg.ConnectInterval = 5 * time.Second
+	connCfg.ConnectPeriod = 15 * time.Minute
 }
 
 func main() {
@@ -41,38 +45,50 @@ func main() {
 
 func realMain() int {
 	// Load the AUTOPATH value
-	autopath := os.Getenv(autofact.PathVarName)
-	if autopath == "" {
-		autopath = defaultAutoFactDir
+	tmp := os.Getenv(autofactEnvName)
+	if tmp != "" {
+		autofactPath = tmp
 	}
-	autopath = os.ExpandEnv(autopath)
+	autofactPath = os.ExpandEnv(autofactPath)
+
 	// make sure the autopath exists (create if it doesn't)
-	err := os.MkdirAll(autopath, 0760)
+	err := os.MkdirAll(autofactPath, 0760)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to create Autopath dir: %s\n", err)
 		return 1
 	}
-	cfgFile = filepath.Join(autopath, cfgFile)
-	infFile = filepath.Join(autopath, infFile)
+
+	// finalize the paths
+	connFile = filepath.Join(autofactPath, connFile)
+	infFile = filepath.Join(autofactPath, infFile)
+
+	// process the settings
+	err = connCfg.Load(connFile)
+	if err != nil {
+		// Log the error and continue.  An error is not a show stopper as the file
+		// may not exist if this is the first time autofact has run on this node.
+		fmt.Fprintf(os.Stderr, "using default settings: connection cfg: %s\n", err)
+	}
+
+	// Parse the flags.
+	flag.Parse()
+
+	// TODO add env var support
+
 	// Load the client's information; if it can't be found or doesn't exist, e.g.
 	// is a new client, a serialized client.Inf is returned with the client id set
 	// to 0.  The server will provide the information.  The server also provides
 	// updated client settings.
-	// TODO: work out client inf setting management better.
-	inf, err := cfg.LoadNode(infFile)
+	// TODO: elide this; the info should come from the server
+	inf, err := cfg.LoadNodeInf(infFile)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "error loading connection information from file: %s", err)
 	}
+
 	// get a client
 	c := client.New(inf)
-	c.AutoPath = autopath
-	err = c.Conn.Load(cfgFile)
-	if err != nil {
-		// If there was an error, not it and use the default settings
-		fmt.Fprintf(os.Stderr, "using default settings: connection cfg: %s\n", err)
-		c.Conn = connCfg
-		c.Conn.SetFilename(cfgFile)
-	}
+	c.AutoPath = autofactPath
+	c.Conn = connCfg
 
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
@@ -92,7 +108,7 @@ func realMain() int {
 		return 1
 	}
 	// save the client inf
-	err = c.Node.Save(infFile)
+	err = c.NodeInf.Save(infFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "save client inf failed: %s\n", err)
 	}
