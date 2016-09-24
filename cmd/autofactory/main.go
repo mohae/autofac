@@ -15,7 +15,7 @@ import (
 )
 
 var (
-	srvr     server
+	srvr     = newServer()
 	connConf conf.Conn
 
 	// The default directory used by Autofactory for app data.
@@ -26,11 +26,6 @@ var (
 	// server's clientConf file, which is specified by clientConfFile.
 	clientConf     []byte
 	clientConfFile string
-	bDBFile        string
-	influxDBName   string
-	influxUser     string
-	influxPassword string
-	influxAddress  string
 )
 
 // flags
@@ -39,16 +34,16 @@ func init() {
 	flag.StringVar(&connConf.ServerPort, "p", "8675", "port to use for websockets (short)")
 	flag.StringVar(&clientConfFile, "clientconf", "autofact.json", "location of client configuration file")
 	flag.StringVar(&clientConfFile, "c", "autofact.json", "location of client configuration file (short)")
-	flag.StringVar(&bDBFile, "dbfile", "autofactory.bdb", "location of the autofactory database file")
-	flag.StringVar(&bDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
-	flag.StringVar(&influxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
-	flag.StringVar(&influxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
-	flag.StringVar(&influxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
-	flag.StringVar(&influxAddress, "a", "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
-	flag.StringVar(&influxUser, "username", "autoadmin", "the username of the InfluxDB user")
-	flag.StringVar(&influxUser, "u", "autoadmin", "the username of the InfluxDB user (short)")
-	flag.StringVar(&influxPassword, "password", "thisisnotapassword", "the username of the InfluxDB user")
-	flag.StringVar(&influxPassword, "P", "thisisnotapassword", "the username of the InfluxDB user (short)")
+	flag.StringVar(&srvr.BoltDBFile, "dbfile", "autofactory.bdb", "location of the autofactory database file")
+	flag.StringVar(&srvr.BoltDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
+	flag.StringVar(&srvr.InfluxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
+	flag.StringVar(&srvr.InfluxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
+	flag.StringVar(&srvr.InfluxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
+	flag.StringVar(&srvr.InfluxAddress, "a", "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
+	flag.StringVar(&srvr.InfluxUser, "username", "autoadmin", "the username of the InfluxDB user")
+	flag.StringVar(&srvr.InfluxUser, "u", "autoadmin", "the username of the InfluxDB user (short)")
+	flag.StringVar(&srvr.InfluxPassword, "password", "thisisnotapassword", "the username of the InfluxDB user")
+	flag.StringVar(&srvr.InfluxPassword, "P", "thisisnotapassword", "the username of the InfluxDB user (short)")
 }
 
 func main() {
@@ -72,7 +67,7 @@ func realMain() int {
 	}
 
 	clientConfFile = filepath.Join(autofactoryPath, clientConfFile)
-	bDBFile = filepath.Join(autofactoryPath, bDBFile)
+	srvr.BoltDBFile = filepath.Join(autofactoryPath, srvr.BoltDBFile)
 
 	flag.Parse()
 
@@ -92,7 +87,7 @@ func realMain() int {
 
 	v := binary.LittleEndian.Uint32(b)
 	fmt.Printf("%x\n", v)
-	srvr = newServer(v)
+	srvr.ID = v
 	srvr.Path = autofactoryPath
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
@@ -119,7 +114,7 @@ func realMain() int {
 	srvr.ClientConf = clientConf
 
 	// bdb is used as the extension for bolt db.
-	err = srvr.DB.Open(bDBFile)
+	err = srvr.DB.Open(srvr.BoltDBFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
 		return 1
@@ -128,7 +123,7 @@ func realMain() int {
 	// connect to Influx
 	err = srvr.connectToInfluxDB()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", influxDBName, err)
+		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", srvr.InfluxDBName, err)
 		return 1
 	}
 	go handleSignals(&srvr)

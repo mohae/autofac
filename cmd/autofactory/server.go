@@ -34,27 +34,33 @@ var (
 // is tracking/serving.
 type server struct {
 	// Autofact directory path
-	AutoPath string
+	AutoPath string `json:"-"`
 	// ID of the server
-	ID uint32
+	ID uint32 `json:"-"`
 	// URL of the server
-	url.URL
+	url.URL `json:"-"`
 	// Flatbuffers serialized default client config.
-	ClientConf []byte
+	ClientConf []byte `json:"-"`
 	// A map of clients, by ID
-	Inventory inventory
+	Inventory inventory `json:"-"`
 	// TODO: add handling to prevent the same client from connecting
 	// more than once:  this requires detection of reconnect of an
 	// existing client vs an existing client maintaining multiple
 	// con-current connections
-	DB db.Bolt
+	DB db.Bolt `json:"-"`
 	// InfluxDB client
-	*InfluxClient
+	*InfluxClient `json:"-"`
+	// DB info.
+	// TODO: should this be persisted; if not, remove the json tags
+	BoltDBFile     string `json:"bolt_db_file"`
+	InfluxDBName   string `json:"influx_db_name"`
+	InfluxUser     string `json:"influx_user"`
+	InfluxPassword string `json:"influx_password"`
+	InfluxAddress  string `json:"influx_address"`
 }
 
-func newServer(id uint32) server {
+func newServer() server {
 	return server{
-		ID:        id,
 		Inventory: newInventory(),
 	}
 }
@@ -77,7 +83,7 @@ func (s *server) LoadInventory() (int, error) {
 // connects to InfluxDB
 func (s *server) connectToInfluxDB() error {
 	var err error
-	s.InfluxClient, err = newInfluxClient(influxDBName, influxAddress, influxUser, influxPassword)
+	s.InfluxClient, err = newInfluxClient(srvr.InfluxDBName, srvr.InfluxAddress, srvr.InfluxUser, srvr.InfluxPassword)
 	return err
 }
 
