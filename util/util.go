@@ -99,3 +99,13 @@ func (d *Duration) UnmarshalJSON(b []byte) (err error) {
 	d.Duration, err = time.ParseDuration(string(b[1 : len(b)-1]))
 	return err
 }
+
+// Int64 is a helper func that returns the duration as an int64.
+func (d *Duration) Int64() int64 {
+	return int64(d.Duration)
+}
+
+// Set is a helper function that sets the duration with the value.
+func (d *Duration) Set(v int64) {
+	d.Duration = time.Duration(v)
+}

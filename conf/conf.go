@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
 
 	"github.com/google/flatbuffers/go"
+	"github.com/mohae/autofact/util"
 )
 
 // Conf is used to hold flag arguments passed on start
@@ -42,8 +42,8 @@ type Conn struct {
 	ServerAddress   string        `json:"server_address"`
 	ServerPort      string        `json:"server_port"`
 	ServerID        uint32        `json:"server_id"`
-	ConnectInterval time.Duration `json:"connect_interval"`
-	ConnectPeriod   time.Duration `json:"connect_period"`
+	ConnectInterval util.Duration `json:"connect_interval"`
+	ConnectPeriod   util.Duration `json:"connect_period"`
 	filename        string
 	Conf
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
+	"github.com/mohae/autofact/util"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
@@ -24,9 +25,9 @@ import (
 
 // Defaults for Client Conf: if file doesn't exist.
 var (
-	DefaultHealthbeatInterval   = 5 * time.Second
-	DefaultHealthbeatPushPeriod = 15 * time.Second
-	DefaultSaveInterval         = 30 * time.Second
+	DefaultHealthbeatInterval   = util.Duration{5 * time.Second}
+	DefaultHealthbeatPushPeriod = util.Duration{15 * time.Second}
+	DefaultSaveInterval         = util.Duration{30 * time.Second}
 )
 
 // server is the container for a server's information and everything that it
@@ -289,13 +290,10 @@ func (c *Client) processBinaryMessage(p []byte) error {
 // All communication of conf data between Server and Client (Node) is done
 // with Flatbuffers serialization.
 type ClientConf struct {
-	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
-	HealthbeatInterval      time.Duration `json:"-"`
-	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
-	HealthbeatPushPeriod    time.Duration `json:"-"`
-	RawSaveInterval         string        `json:"save_interval"`
-	SaveInterval            time.Duration `json:"-"`
-	WriteWait               time.Duration `json:"-"`
+	HealthbeatInterval   util.Duration `json:"healthbeat_interval"`
+	HealthbeatPushPeriod util.Duration `json:"healthbeat_push_period"`
+	SaveInterval         util.Duration `json:"save_interval"`
+	WriteWait            util.Duration `json:"-"`
 }
 
 // Load loads the client configuration from the specified file.
@@ -308,29 +306,14 @@ func (c *ClientConf) Load(file string) error {
 	if err != nil {
 		return fmt.Errorf("error unmarshaling client conf file %s: %s", file, err)
 	}
-	c.HealthbeatInterval, err = time.ParseDuration(c.RawHealthbeatInterval)
-	if err != nil {
-		return fmt.Errorf("error parsing healthbeat interval: %s", err)
-	}
-	c.HealthbeatPushPeriod, err = time.ParseDuration(c.RawHealthbeatPushPeriod)
-	if err != nil {
-		return fmt.Errorf("error parsing healthbeat push period %s", err)
-	}
-	c.SaveInterval, err = time.ParseDuration(c.RawSaveInterval)
-	if err != nil {
-		return fmt.Errorf("error parsing save interval %s", err)
-	}
 	return nil
 }
 
 // Returns a ClientConf with application defaults.  This is called when
 // the Conf file cannot be found.
 func (c *ClientConf) UseAppDefaults() {
-	c.RawHealthbeatInterval = DefaultHealthbeatInterval.String()
 	c.HealthbeatInterval = DefaultHealthbeatInterval
-	c.RawHealthbeatPushPeriod = DefaultHealthbeatPushPeriod.String()
 	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
-	c.RawSaveInterval = DefaultSaveInterval.String()
 	c.SaveInterval = DefaultSaveInterval
 	// WriteWait isn't set because it isn't being used yet.
 }
@@ -351,9 +334,9 @@ func (c *ClientConf) SaveAsJSON(fname string) error {
 func (c *ClientConf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	conf.ClientStart(bldr)
-	conf.ClientAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	conf.ClientAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	conf.ClientAddSaveInterval(bldr, int64(c.SaveInterval))
+	conf.ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval.Int64())
+	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
+	conf.ClientAddSaveInterval(bldr, c.SaveInterval.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
@@ -361,7 +344,7 @@ func (c *ClientConf) Serialize() []byte {
 // Deserialize deserializes serialized conf.Client into ClientConf.
 func (c *ClientConf) Deserialize(p []byte) {
 	cnf := conf.GetRootAsClient(p, 0)
-	c.HealthbeatInterval = time.Duration(cnf.HealthbeatInterval())
-	c.HealthbeatPushPeriod = time.Duration(cnf.HealthbeatPushPeriod())
-	c.SaveInterval = time.Duration(cnf.SaveInterval())
+	c.HealthbeatInterval.Set(cnf.HealthbeatInterval())
+	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
+	c.SaveInterval.Set(cnf.SaveInterval())
 }
