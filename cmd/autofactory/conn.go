@@ -8,7 +8,7 @@ import (
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
 )
 
@@ -44,8 +44,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	}
 	var c *Client
 	var ok bool
-	// the bytes are cfg.NodeInf
-	n := cfg.GetRootAsNodeInf(p, 0)
+	// the bytes are conf.Node
+	n := conf.GetRootAsNode(p, 0)
 	if n.ID() == 0 {
 		// get a new client and its ID
 		c, err = srvr.NewClient()
@@ -72,24 +72,24 @@ sendInf:
 	rr := bldr.CreateByteString(n.Region())
 	z := bldr.CreateByteString(n.Zone())
 	d := bldr.CreateByteString(n.DataCenter())
-	cfg.NodeInfStart(bldr)
-	cfg.NodeInfAddID(bldr, c.NodeInf.ID())
-	cfg.NodeInfAddHostname(bldr, h)
-	cfg.NodeInfAddRegion(bldr, rr)
-	cfg.NodeInfAddZone(bldr, z)
-	cfg.NodeInfAddDataCenter(bldr, d)
-	bldr.Finish(cfg.NodeInfEnd(bldr))
+	conf.NodeStart(bldr)
+	conf.NodeAddID(bldr, c.Node.ID())
+	conf.NodeAddHostname(bldr, h)
+	conf.NodeAddRegion(bldr, rr)
+	conf.NodeAddZone(bldr, z)
+	conf.NodeAddDataCenter(bldr, d)
+	bldr.Finish(conf.NodeEnd(bldr))
 	b := bldr.Bytes[bldr.Head():]
-	c.NodeInf = cfg.GetRootAsNodeInf(b, 0)
+	c.Node = conf.GetRootAsNode(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", c.NodeInf.ID(), err)
+		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", c.Node.ID(), err)
 		return
 	}
 
-	fmt.Printf("%X connected\n", c.NodeInf.ID())
+	fmt.Printf("%X connected\n", c.Node.ID())
 
 	// save the client inf to the inventory
-	srvr.Inventory.SaveNode(c.NodeInf, b)
+	srvr.Inventory.SaveNode(c.Node, b)
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf

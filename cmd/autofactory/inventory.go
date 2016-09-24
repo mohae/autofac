@@ -3,24 +3,24 @@ package main
 import (
 	"sync"
 
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/util"
 )
 
 // inventory holds information about all of the nodes the system knows about.
 type inventory struct {
-	nodes map[uint32]*cfg.NodeInf
+	nodes map[uint32]*conf.Node
 	mu    sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		nodes: map[uint32]*cfg.NodeInf{},
+		nodes: map[uint32]*conf.Node{},
 	}
 }
 
 // AddNode adds a node's information to the inventory.
-func (i *inventory) AddNode(id uint32, c *cfg.NodeInf) {
+func (i *inventory) AddNode(id uint32, c *conf.Node) {
 	// TODO: should collision detection be done/force update cfg.Node
 	// if it exists? or generate an error?
 	i.mu.Lock()
@@ -30,7 +30,7 @@ func (i *inventory) AddNode(id uint32, c *cfg.NodeInf) {
 
 // SaveNode updates the inventory with a node's information and saves it to
 // the database.
-func (i *inventory) SaveNode(c *cfg.NodeInf, p []byte) error {
+func (i *inventory) SaveNode(c *conf.Node, p []byte) error {
 	i.mu.Lock()
 	i.nodes[c.ID()] = c
 	i.mu.Unlock()
@@ -55,7 +55,7 @@ func (i *inventory) nodeExists(id uint32) bool {
 
 // Node returns true and the information for the requested ID, if it exists,
 // otherwise false is returned.
-func (i *inventory) Node(id uint32) (*cfg.NodeInf, bool) {
+func (i *inventory) Node(id uint32) (*conf.Node, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	c, ok := i.nodes[id]
@@ -71,7 +71,7 @@ func (i *inventory) NewNode() *Client {
 		id := util.RandUint32()
 		if !i.nodeExists(id) {
 			n := newClient(id)
-			i.nodes[id] = n.NodeInf
+			i.nodes[id] = n.Node
 			return n
 		}
 	}

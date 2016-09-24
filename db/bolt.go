@@ -7,7 +7,7 @@ import (
 	"os"
 
 	"github.com/boltdb/bolt"
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 )
 
 // Error is an error struct for database operations
@@ -90,9 +90,9 @@ func (b *Bolt) NodeIDs() ([]uint32, error) {
 	return ids, err
 }
 
-// Nodes returns all the cfg.Nodes within the database.
-func (b *Bolt) Nodes() ([]*cfg.NodeInf, error) {
-	var nodes []*cfg.NodeInf
+// Nodes returns all the Nodes within the database.
+func (b *Bolt) Nodes() ([]*conf.Node, error) {
+	var nodes []*conf.Node
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -101,15 +101,15 @@ func (b *Bolt) Nodes() ([]*cfg.NodeInf, error) {
 		c := b.Cursor()
 		// each value is a serialized client.Inf
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			nodes = append(nodes, cfg.GetRootAsNodeInf(v, 0))
+			nodes = append(nodes, conf.GetRootAsNode(v, 0))
 		}
 		return nil
 	})
 	return nodes, err
 }
 
-// SaveNode saves a cfg.Node in the client bucket.
-func (b *Bolt) SaveNode(c *cfg.NodeInf) error {
+// SaveNode saves a Node in the client bucket.
+func (b *Bolt) SaveNode(c *conf.Node) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		bid := make([]byte, 4)

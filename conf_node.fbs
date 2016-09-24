@@ -1,7 +1,7 @@
-// cfg_nodeInf.fbs
-namespace cfg;
+// conf_node.fbs
+namespace conf;
 
-table NodeInf {
+table Node {
 	ID:uint;
     Hostname:string;
 	Region:string;
@@ -9,4 +9,4 @@ table NodeInf {
 	DataCenter:string;
 }
 
-root_type NodeInf;
+root_type Node;

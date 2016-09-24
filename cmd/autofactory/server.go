@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
@@ -22,7 +22,7 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
-// Defaults for ClientCfg: if file doesn't exist.
+// Defaults for Client Conf: if file doesn't exist.
 var (
 	DefaultHealthbeatInterval   = 5 * time.Second
 	DefaultHealthbeatPushPeriod = 15 * time.Second
@@ -88,8 +88,8 @@ func (s *server) Client(id uint32) (*Client, bool) {
 		return nil, false
 	}
 	return &Client{
-		NodeInf:      c,
-		ClientConf:   cfg.GetRootAsClientConf(clientConf, 0),
+		Node:         c,
+		Client:       conf.GetRootAsClient(clientConf, 0),
 		InfluxClient: s.InfluxClient,
 	}, true
 }
@@ -102,14 +102,14 @@ func (s *server) NewClient() (*Client, error) {
 	c := s.Inventory.NewNode()
 	c.InfluxClient = s.InfluxClient
 	// save the client info to the db
-	err := s.DB.SaveNode(c.NodeInf)
+	err := s.DB.SaveNode(c.Node)
 	return c, err
 }
 
 // Client holds information about a client.
 type Client struct {
-	*cfg.NodeInf
-	*cfg.ClientConf
+	*conf.Node
+	*conf.Client
 	WS *websocket.Conn
 	*InfluxClient
 	isConnected bool
@@ -117,12 +117,12 @@ type Client struct {
 
 func newClient(id uint32) *Client {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.NodeInfStart(bldr)
-	cfg.NodeInfAddID(bldr, id)
-	bldr.Finish(cfg.NodeInfEnd(bldr))
+	conf.NodeStart(bldr)
+	conf.NodeAddID(bldr, id)
+	bldr.Finish(conf.NodeEnd(bldr))
 	return &Client{
-		NodeInf:    cfg.GetRootAsNodeInf(bldr.Bytes[bldr.Head():], 0),
-		ClientConf: cfg.GetRootAsClientConf(clientConf, 0),
+		Node:   conf.GetRootAsNode(bldr.Bytes[bldr.Head():], 0),
+		Client: conf.GetRootAsClient(clientConf, 0),
 	}
 }
 
@@ -178,7 +178,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.NodeInf.ID(), k, p))
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.Node.ID(), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -192,9 +192,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
-		fmt.Printf("%s: cpu utilization\n", c.NodeInf.Hostname())
+		fmt.Printf("%s: cpu utilization\n", c.Node.Hostname())
 		cpus := cpuutil.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		var bErr error // this is the last error in the batch, if any
 		// Each cpu is it's own point, make a slice to accommodate them all and process.
 		pts := make([]*influx.Point, 0, len(cpus.CPU))
@@ -217,9 +217,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		}
 		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 	case message.SysLoadAvg:
-		fmt.Printf("%s: loadavg\n", c.NodeInf.Hostname())
+		fmt.Printf("%s: loadavg\n", c.Node.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		fields := map[string]interface{}{
 			"one":     l.One,
 			"five":    l.Five,
@@ -228,9 +228,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.SysMemInfo:
-		fmt.Printf("%s: meminfo\n", c.NodeInf.Hostname())
+		fmt.Printf("%s: meminfo\n", c.Node.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		fields := map[string]interface{}{
 			"total_ram":  m.TotalRAM,
 			"free_ram":   m.FreeRAM,
@@ -242,9 +242,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.NetUsage:
-		fmt.Printf("%s: network usage\n", c.NodeInf.Hostname())
+		fmt.Printf("%s: network usage\n", c.Node.Hostname())
 		ifaces := netf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.NodeInf.Hostname()), "region": string(c.NodeInf.Region())}
+		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
 		var bErr error // the last error in the batch, if any
 		// Make a slice of points whose length is equal to the number of Interfaces
 		// and process the interfaces.
@@ -284,11 +284,11 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	return nil
 }
 
-// ClientCfg defines the client behavior, outside of connections.  This
-// is serverside only and for loading the default clientCfg from a file.
-// All communication of cfg data between Server and Client (Node) is done
-// with Flatbuffers serialized cfg.Client.
-type ClientCfg struct {
+// ClientConf defines the client behavior, outside of connections.  This
+// is serverside only and for loading the default clientConf from a file.
+// All communication of conf data between Server and Client (Node) is done
+// with Flatbuffers serialization.
+type ClientConf struct {
 	RawHealthbeatInterval   string        `json:"healthbeat_interval"`
 	HealthbeatInterval      time.Duration `json:"-"`
 	RawHealthbeatPushPeriod string        `json:"healthbeat_push_period"`
@@ -299,14 +299,14 @@ type ClientCfg struct {
 }
 
 // Load loads the client configuration from the specified file.
-func (c *ClientCfg) Load(cfgFile string) error {
-	b, err := ioutil.ReadFile(cfgFile)
+func (c *ClientConf) Load(file string) error {
+	b, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
 	}
 	err = json.Unmarshal(b, c)
 	if err != nil {
-		return fmt.Errorf("error unmarshaling client cfg file %s: %s", cfgFile, err)
+		return fmt.Errorf("error unmarshaling client conf file %s: %s", file, err)
 	}
 	c.HealthbeatInterval, err = time.ParseDuration(c.RawHealthbeatInterval)
 	if err != nil {
@@ -323,9 +323,9 @@ func (c *ClientCfg) Load(cfgFile string) error {
 	return nil
 }
 
-// Returns a ClientCfg with application defaults.  This is called when
-// the Cfg file cannot be found.
-func (c *ClientCfg) UseAppDefaults() {
+// Returns a ClientConf with application defaults.  This is called when
+// the Conf file cannot be found.
+func (c *ClientConf) UseAppDefaults() {
 	c.RawHealthbeatInterval = DefaultHealthbeatInterval.String()
 	c.HealthbeatInterval = DefaultHealthbeatInterval
 	c.RawHealthbeatPushPeriod = DefaultHealthbeatPushPeriod.String()
@@ -335,33 +335,33 @@ func (c *ClientCfg) UseAppDefaults() {
 	// WriteWait isn't set because it isn't being used yet.
 }
 
-func (c *ClientCfg) SaveAsJSON(fname string) error {
+func (c *ClientConf) SaveAsJSON(fname string) error {
 	b, err := json.MarshalIndent(c, "", "\t")
 	if err != nil {
-		return fmt.Errorf("error marshaling ClientCfg to JSON: %s", err)
+		return fmt.Errorf("error marshaling ClientConf to JSON: %s", err)
 	}
 	err = ioutil.WriteFile(fname, b, 0600)
 	if err != nil {
-		return fmt.Errorf("ClientCfg save error: %s", err)
+		return fmt.Errorf("ClientConf save error: %s", err)
 	}
 	return nil
 }
 
-// Serialize serializes the struct as a cfg.Conf.
-func (c *ClientCfg) Serialize() []byte {
+// Serialize serializes the struct as a conf.Client.
+func (c *ClientConf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	cfg.ClientConfStart(bldr)
-	cfg.ClientConfAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
-	cfg.ClientConfAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
-	cfg.ClientConfAddSaveInterval(bldr, int64(c.SaveInterval))
-	bldr.Finish(cfg.ClientConfEnd(bldr))
+	conf.ClientStart(bldr)
+	conf.ClientAddHealthbeatInterval(bldr, int64(c.HealthbeatInterval))
+	conf.ClientAddHealthbeatPushPeriod(bldr, int64(c.HealthbeatPushPeriod))
+	conf.ClientAddSaveInterval(bldr, int64(c.SaveInterval))
+	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Deserialize deserializes serialized cfg.Conf into ClientCfg.
-func (c *ClientCfg) Deserialize(p []byte) {
-	conf := cfg.GetRootAsClientConf(p, 0)
-	c.HealthbeatInterval = time.Duration(conf.HealthbeatInterval())
-	c.HealthbeatPushPeriod = time.Duration(conf.HealthbeatPushPeriod())
-	c.SaveInterval = time.Duration(conf.SaveInterval())
+// Deserialize deserializes serialized conf.Client into ClientConf.
+func (c *ClientConf) Deserialize(p []byte) {
+	cnf := conf.GetRootAsClient(p, 0)
+	c.HealthbeatInterval = time.Duration(cnf.HealthbeatInterval())
+	c.HealthbeatPushPeriod = time.Duration(cnf.HealthbeatPushPeriod())
+	c.SaveInterval = time.Duration(cnf.SaveInterval())
 }

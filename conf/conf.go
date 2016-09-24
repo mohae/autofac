@@ -1,7 +1,8 @@
-package cfg
+package conf
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -9,6 +10,31 @@ import (
 
 	"github.com/google/flatbuffers/go"
 )
+
+// Conf is used to hold flag arguments passed on start
+type Conf struct {
+	args []*flag.Flag // all flags that were visited
+}
+
+// Visited builds a list of the names of the flags that were passed as args.
+func (c *Conf) Visited(a *flag.Flag) {
+	c.args = append(c.args, a)
+}
+
+// Args returns all of the args that were passed.
+func (c *Conf) Args() []*flag.Flag {
+	return c.args
+}
+
+// Flag returns the requested flag, if it was set, or nil.
+func (c *Conf) Flag(s string) *flag.Flag {
+	for _, v := range c.args {
+		if s == v.Name {
+			return v
+		}
+	}
+	return nil
+}
 
 // Conn holds the connection information for a node.  This is all that is
 // persisted on a client node.
@@ -62,9 +88,9 @@ func (c *Conn) SetFilename(v string) {
 	c.filename = v
 }
 
-// LoadNodeInf loads the cfg.NodeInf from the file specified.  If it doesn't
-// exist, a NodeInf with its ID set to 0 and the current hostname is returned.
-func LoadNodeInf(name string) (*NodeInf, error) {
+// LoadNode loads the Node information from the file specified.  If it doesn't
+// exist, a Node with its ID set to 0 and the current hostname is returned.
+func LoadNode(name string) (*Node, error) {
 	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		bldr := flatbuffers.NewBuilder(0)
@@ -73,51 +99,49 @@ func LoadNodeInf(name string) (*NodeInf, error) {
 			return nil, fmt.Errorf("load node inf failed: could not determine hostname: %s\n", err)
 		}
 		h := bldr.CreateString(hostname)
-		NodeInfStart(bldr)
-		NodeInfAddID(bldr, 0)
-		NodeInfAddHostname(bldr, h)
-		bldr.Finish(NodeInfEnd(bldr))
-		return GetRootAsNodeInf(bldr.Bytes[bldr.Head():], 0), nil
+		NodeStart(bldr)
+		NodeAddID(bldr, 0)
+		NodeAddHostname(bldr, h)
+		bldr.Finish(NodeEnd(bldr))
+		return GetRootAsNode(bldr.Bytes[bldr.Head():], 0), nil
 	}
-	return GetRootAsNodeInf(b, 0), nil
+	return GetRootAsNode(b, 0), nil
 }
 
 // Serialize serializes the Node using flatbuffers and returns the []byte.
-func (n *NodeInf) Serialize() []byte {
+func (n *Node) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	h := bldr.CreateByteString(n.Hostname())
 	r := bldr.CreateByteString(n.Region())
 	z := bldr.CreateByteString(n.Zone())
 	d := bldr.CreateByteString(n.DataCenter())
-	NodeInfStart(bldr)
-	NodeInfAddID(bldr, n.ID())
-	NodeInfAddHostname(bldr, h)
-	NodeInfAddRegion(bldr, r)
-	NodeInfAddZone(bldr, z)
-	NodeInfAddDataCenter(bldr, d)
-	bldr.Finish(NodeInfEnd(bldr))
+	NodeStart(bldr)
+	NodeAddID(bldr, n.ID())
+	NodeAddHostname(bldr, h)
+	NodeAddRegion(bldr, r)
+	NodeAddZone(bldr, z)
+	NodeAddDataCenter(bldr, d)
+	bldr.Finish(NodeEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
 // Save the current Node to a file.
-func (n *NodeInf) Save(fname string) error {
+func (n *Node) Save(fname string) error {
 	return ioutil.WriteFile(fname, n.Serialize(), 0600)
 }
 
-// Serialize serializes the struct.  The flatbuffers definition for this
-// struct is in autofact/cfg_clientConf.fbs and the resulting definition is in
-// cfg/ClientConf.go
-func (c *ClientConf) Serialize() []byte {
+// Serialize serializes the Client conf.
+func (c *Client) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
-	ClientConfStart(bldr)
-	ClientConfAddHealthbeatInterval(bldr, c.HealthbeatInterval())
-	ClientConfAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	ClientConfAddSaveInterval(bldr, c.SaveInterval())
-	bldr.Finish(ClientConfEnd(bldr))
+	ClientStart(bldr)
+	ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval())
+	ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
+	ClientAddSaveInterval(bldr, c.SaveInterval())
+	bldr.Finish(ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
 
-// Deserialize deserializes the bytes into the current Conf.
-func (c *ClientConf) Deserialize(p []byte) {
-	c = GetRootAsClientConf(p, 0)
+// Deserialize deserializes the bytes into the current Client Conf.
+func (c *Client) Deserialize(p []byte) {
+	c = GetRootAsClient(p, 0)
 }

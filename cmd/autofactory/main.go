@@ -11,19 +11,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 )
 
 var (
-	srvr    server
-	connCfg cfg.Conn
+	srvr     server
+	connConf conf.Conn
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
 	autofactoryEnvName = "AUTOFACTORY_PATH"
 
-	// the serialized default client.Cfg.  The data is originally loaded from the
-	// server's ClientCfg file, which is specified by clientCfgFile.
+	// the serialized default client conf.  The data is originally loaded from the
+	// server's clientConf file, which is specified by clientConfFile.
 	clientConf     []byte
 	clientConfFile string
 	bDBFile        string
@@ -35,9 +35,9 @@ var (
 
 // flags
 func init() {
-	flag.StringVar(&connCfg.ServerPort, "port", "8675", "port to use for websockets")
-	flag.StringVar(&connCfg.ServerPort, "p", "8675", "port to use for websockets (short)")
-	flag.StringVar(&clientConfFile, "clientcfg", "autofact.json", "location of client configuration file")
+	flag.StringVar(&connConf.ServerPort, "port", "8675", "port to use for websockets")
+	flag.StringVar(&connConf.ServerPort, "p", "8675", "port to use for websockets (short)")
+	flag.StringVar(&clientConfFile, "clientconf", "autofact.json", "location of client configuration file")
 	flag.StringVar(&clientConfFile, "c", "autofact.json", "location of client configuration file (short)")
 	flag.StringVar(&bDBFile, "dbfile", "autofactory.bdb", "location of the autofactory database file")
 	flag.StringVar(&bDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
@@ -79,7 +79,7 @@ func realMain() int {
 	// it is assumed that the server address is an IPv4
 	// TODO: revisit this assumption
 	b := make([]byte, 4)
-	parts := strings.Split(connCfg.ServerAddress, ".")
+	parts := strings.Split(connConf.ServerAddress, ".")
 	for i, v := range parts {
 		// prevent out of range if the address ends up consisting of more than 4 parts
 		if 1 > 3 {
@@ -97,7 +97,7 @@ func realMain() int {
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
 	// client, or group, or role, or pod, etc.
-	var cConf ClientCfg
+	var cConf ClientConf
 	err = cConf.Load(clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -138,7 +138,7 @@ func realMain() int {
 	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
 	fmt.Println(srvr.URL.String())
-	err = http.ListenAndServe(fmt.Sprintf(":%s", connCfg.ServerPort), nil)
+	err = http.ListenAndServe(fmt.Sprintf(":%s", connConf.ServerPort), nil)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "unable to start server: %s\n", err)
 		return 1
