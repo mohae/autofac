@@ -35,8 +35,8 @@ func init() {
 	flag.StringVar(&connConf.ServerAddress, aVar, "127.0.0.1", "the server address (short)")
 	flag.StringVar(&connConf.ServerPort, portVar, "8675", "the connection port")
 	flag.StringVar(&connConf.ServerPort, pVar, "8675", "the connection port (short)")
-	connConf.ConnectInterval = 5 * time.Second
-	connConf.ConnectPeriod = 15 * time.Minute
+	connConf.ConnectInterval.Duration = 5 * time.Second
+	connConf.ConnectPeriod.Duration = 15 * time.Minute
 }
 
 func main() {

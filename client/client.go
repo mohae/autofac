@@ -68,7 +68,7 @@ func (c *Client) Connect() bool {
 		return true
 	}
 	start := time.Now()
-	retryEnd := start.Add(c.ConnectPeriod)
+	retryEnd := start.Add(c.ConnectPeriod.Duration)
 	// connect to server; retry until the retry period has expired
 	for {
 		if time.Now().After(retryEnd) {
@@ -79,7 +79,7 @@ func (c *Client) Connect() bool {
 		if err == nil {
 			break
 		}
-		time.Sleep(c.ConnectInterval)
+		time.Sleep(c.ConnectInterval.Duration)
 		fmt.Printf("unable to connect to the server %s: retrying...\n", c.ServerURL.String())
 	}
 	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
