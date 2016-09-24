@@ -24,8 +24,6 @@ type Client struct {
 	AutoPath string
 	// Node holds the basic client information.
 	*cfg.NodeInf
-	// This is Node as bytes: this is hopefully unnecessary, but I don't know at this point.
-	NodeBytes []byte
 	// Conn holds the configuration for connecting to the server.
 	cfg.Conn
 	// Conf holds the client configuration (how the client behaves).
@@ -87,7 +85,7 @@ func (c *Client) Connect() bool {
 	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
 	// respond with one.  Retry until the server responds, or until the
 	// reconnectPeriod has expired.
-	err := c.WS.WriteMessage(websocket.BinaryMessage, c.NodeBytes)
+	err := c.WS.WriteMessage(websocket.BinaryMessage, c.NodeInf.Serialize())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		c.WS.Close()
