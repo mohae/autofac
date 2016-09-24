@@ -11,32 +11,36 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/cfg"
 )
 
-var srvr server
-var connCfg cfg.Conn
+var (
+	srvr    server
+	connCfg cfg.Conn
 
-// The default directory used by Autofactory for app data.
-var defaultAutoFactDir = "$HOME/.autofactory"
+	// The default directory used by Autofactory for app data.
+	autofactoryPath    = "$HOME/.autofactory"
+	autofactoryEnvName = "AUTOFACTORY_PATH"
 
-// the serialized default client.Cfg.  The data is originally loaded from the
-// server's ClientCfg file, which is specified by clientCfgFile.
-var clientConf []byte
-var clientCfgFile = flag.String("clientcfg", "autofact-client.json", "location of client configuration file")
-var bDBFile = flag.String("dbfile", "autofactory.bdb", "location of the autofactory database file")
-var influxDBName string
-var influxUser string
-var influxPassword string
-var influxAddress string
+	// the serialized default client.Cfg.  The data is originally loaded from the
+	// server's ClientCfg file, which is specified by clientCfgFile.
+	clientConf     []byte
+	clientConfFile string
+	bDBFile        string
+	influxDBName   string
+	influxUser     string
+	influxPassword string
+	influxAddress  string
+)
 
 // flags
 func init() {
 	flag.StringVar(&connCfg.ServerPort, "port", "8675", "port to use for websockets")
 	flag.StringVar(&connCfg.ServerPort, "p", "8675", "port to use for websockets (short)")
-	flag.StringVar(clientCfgFile, "c", "autofact-client.json", "location of client configuration file (short)")
-	flag.StringVar(bDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
+	flag.StringVar(&clientConfFile, "clientcfg", "autofact.json", "location of client configuration file")
+	flag.StringVar(&clientConfFile, "c", "autofact.json", "location of client configuration file (short)")
+	flag.StringVar(&bDBFile, "dbfile", "autofactory.bdb", "location of the autofactory database file")
+	flag.StringVar(&bDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
 	flag.StringVar(&influxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
 	flag.StringVar(&influxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
 	flag.StringVar(&influxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
@@ -53,23 +57,25 @@ func main() {
 
 // realMain is used to allow defers to run.
 func realMain() int {
-	// Load the AUTOPATH value
-	autopath := os.Getenv(autofact.PathVarName)
-	if autopath == "" {
-		autopath = defaultAutoFactDir
+	// Load the AUTOFACTORY_PATH value
+	tmp := os.Getenv(autofactoryEnvName)
+	if tmp != "" {
+		autofactoryPath = tmp
 	}
-	// Expand any Env vars in the path.
-	autopath = os.ExpandEnv(autopath)
+	autofactoryPath = os.ExpandEnv(autofactoryPath)
+
 	// make sure the autopath exists (create if it doesn't)
-	err := os.MkdirAll(autopath, 0760)
+	err := os.MkdirAll(autofactoryPath, 0760)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to create Autopath dir: %s\n", err)
+		fmt.Fprintf(os.Stderr, "unable to create AUTOFACTORY_PATH dir: %s\n", err)
 		return 1
 	}
 
-	*clientCfgFile = filepath.Join(autopath, *clientCfgFile)
-	*bDBFile = filepath.Join(autopath, *bDBFile)
+	clientConfFile = filepath.Join(autofactoryPath, clientConfFile)
+	bDBFile = filepath.Join(autofactoryPath, bDBFile)
+
 	flag.Parse()
+
 	// it is assumed that the server address is an IPv4
 	// TODO: revisit this assumption
 	b := make([]byte, 4)
@@ -87,33 +93,33 @@ func realMain() int {
 	v := binary.LittleEndian.Uint32(b)
 	fmt.Printf("%x\n", v)
 	srvr = newServer(v)
-	srvr.AutoPath = autopath
-	// load the default client cfg; this is used for new clients.
+	srvr.Path = autofactoryPath
+	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
 	// client, or group, or role, or pod, etc.
-	var cCfg ClientCfg
-	err = cCfg.Load(*clientCfgFile)
+	var cConf ClientCfg
+	err = cConf.Load(clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "error loading the client configuration file: %s\n", err)
 			return 1
 		}
 		// If it didn't exist; use application defaults
-		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", *clientCfgFile)
-		cCfg.UseAppDefaults()
+		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", clientConfFile)
+		cConf.UseAppDefaults()
 		// write this out to the app dir
-		err = cCfg.SaveAsJSON(*clientCfgFile)
+		err = cConf.SaveAsJSON(clientConfFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 	}
 
-	clientConf = cCfg.Serialize()
+	clientConf = cConf.Serialize()
 	srvr.ClientConf = clientConf
 
 	// bdb is used as the extension for bolt db.
-	err = srvr.DB.Open(*bDBFile)
+	err = srvr.DB.Open(bDBFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
 		return 1
