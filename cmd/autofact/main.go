@@ -12,6 +12,13 @@ import (
 	"github.com/mohae/autofact/conf"
 )
 
+const (
+	addressVar = "address"
+	aVar       = "a"
+	portVar    = "port"
+	pVar       = "p"
+)
+
 var (
 	connFile = "autofact.json"
 	nodeFile = "autofact.dat" // contains the node id and other info as serialized data
@@ -19,11 +26,7 @@ var (
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
 	// default
-	connConf   conf.Conn
-	addressVar = "address"
-	aVar       = "a"
-	portVar    = "port"
-	pVar       = "p"
+	connConf conf.Conn
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour

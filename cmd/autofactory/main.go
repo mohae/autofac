@@ -14,6 +14,23 @@ import (
 	"github.com/mohae/autofact/conf"
 )
 
+const (
+	addressVar      = "address"
+	aVar            = "a"
+	clientConfVar   = "clientconf"
+	cVar            = "c"
+	dbfileVar       = "dbfile"
+	dVar            = "d"
+	influxDBNameVar = "dbname"
+	iVar            = "i"
+	passwordVar     = "password"
+	pVar            = "p"
+	portVar         = "port"
+	oVar            = "o"
+	usernameVar     = "username"
+	uVar            = "u"
+)
+
 var (
 	srvr     = newServer()
 	connConf conf.Conn
@@ -30,20 +47,20 @@ var (
 
 // flags
 func init() {
-	flag.StringVar(&connConf.ServerPort, "port", "8675", "port to use for websockets")
-	flag.StringVar(&connConf.ServerPort, "p", "8675", "port to use for websockets (short)")
-	flag.StringVar(&clientConfFile, "clientconf", "autofact.json", "location of client configuration file")
-	flag.StringVar(&clientConfFile, "c", "autofact.json", "location of client configuration file (short)")
-	flag.StringVar(&srvr.BoltDBFile, "dbfile", "autofactory.bdb", "location of the autofactory database file")
-	flag.StringVar(&srvr.BoltDBFile, "d", "autofactory.bdb", "location of the autfactory database file (short)")
-	flag.StringVar(&srvr.InfluxDBName, "dbname", "autofacts", "name of the InfluxDB to connect to")
-	flag.StringVar(&srvr.InfluxDBName, "n", "autofacts", "name of the InfluxDB to connect to (short)")
-	flag.StringVar(&srvr.InfluxAddress, "address", "127.0.0.1:8086", "the address of the InfluxDB")
-	flag.StringVar(&srvr.InfluxAddress, "a", "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
-	flag.StringVar(&srvr.InfluxUser, "username", "autoadmin", "the username of the InfluxDB user")
-	flag.StringVar(&srvr.InfluxUser, "u", "autoadmin", "the username of the InfluxDB user (short)")
-	flag.StringVar(&srvr.InfluxPassword, "password", "thisisnotapassword", "the username of the InfluxDB user")
-	flag.StringVar(&srvr.InfluxPassword, "P", "thisisnotapassword", "the username of the InfluxDB user (short)")
+	flag.StringVar(&connConf.ServerPort, portVar, "8675", "port to use for websockets")
+	flag.StringVar(&connConf.ServerPort, oVar, "8675", "port to use for websockets (short)")
+	flag.StringVar(&clientConfFile, clientConfVar, "autofact.json", "location of client configuration file")
+	flag.StringVar(&clientConfFile, cVar, "autofact.json", "location of client configuration file (short)")
+	flag.StringVar(&srvr.BoltDBFile, dbfileVar, "autofactory.bdb", "location of the autofactory database file")
+	flag.StringVar(&srvr.BoltDBFile, dVar, "autofactory.bdb", "location of the autfactory database file (short)")
+	flag.StringVar(&srvr.InfluxDBName, influxDBNameVar, "autofacts", "name of the InfluxDB to connect to")
+	flag.StringVar(&srvr.InfluxDBName, iVar, "autofacts", "name of the InfluxDB to connect to (short)")
+	flag.StringVar(&srvr.InfluxAddress, addressVar, "127.0.0.1:8086", "the address of the InfluxDB")
+	flag.StringVar(&srvr.InfluxAddress, aVar, "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
+	flag.StringVar(&srvr.InfluxUser, usernameVar, "autoadmin", "the username of the InfluxDB user")
+	flag.StringVar(&srvr.InfluxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
+	flag.StringVar(&srvr.InfluxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
+	flag.StringVar(&srvr.InfluxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
 }
 
 func main() {
