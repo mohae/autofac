@@ -21,7 +21,6 @@ const (
 
 var (
 	connFile = "autofact.json"
-	nodeFile = "autofact.dat" // contains the node id and other info as serialized data
 	// This is the default directory for autofact-client app data.
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
@@ -63,7 +62,6 @@ func realMain() int {
 
 	// finalize the paths
 	connFile = filepath.Join(autofactPath, connFile)
-	nodeFile = filepath.Join(autofactPath, nodeFile)
 
 	// process the settings
 	err = connConf.Load(connFile)
@@ -77,16 +75,6 @@ func realMain() int {
 	flag.Parse()
 
 	// TODO add env var support
-
-	// Load the client's information; if it can't be found or doesn't exist, e.g.
-	// is a new client, a serialized client.Inf is returned with the client id set
-	// to 0.  The server will provide the information.  The server also provides
-	// updated client settings.
-	// TODO: elide this; the info should come from the server
-	inf, err := conf.LoadNode(nodeFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "error loading connection information from file: %s", err)
-	}
 
 	// get a client
 	c := client.New(inf)
@@ -109,11 +97,6 @@ func realMain() int {
 	if !c.IsConnected() {
 		fmt.Fprintf(os.Stderr, "unable to connect to %s\n", c.ServerURL.String())
 		return 1
-	}
-	// save the client inf
-	err = c.Node.Save(nodeFile)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "save client inf failed: %s\n", err)
 	}
 	// start the go routines first
 	go c.Listen(doneCh)

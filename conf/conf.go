@@ -39,6 +39,7 @@ func (c *Conf) Flag(s string) *flag.Flag {
 // Conn holds the connection information for a node.  This is all that is
 // persisted on a client node.
 type Conn struct {
+	ID              string        `json:"id"`
 	ServerAddress   string        `json:"server_address"`
 	ServerPort      string        `json:"server_port"`
 	ServerID        uint32        `json:"server_id"`
@@ -86,48 +87,6 @@ func (c *Conn) Save() error {
 
 func (c *Conn) SetFilename(v string) {
 	c.filename = v
-}
-
-// LoadNode loads the Node information from the file specified.  If it doesn't
-// exist, a Node with its ID set to 0 and the current hostname is returned.
-func LoadNode(name string) (*Node, error) {
-	b, err := ioutil.ReadFile(name)
-	if err != nil {
-		bldr := flatbuffers.NewBuilder(0)
-		hostname, err := os.Hostname()
-		if err != nil {
-			return nil, fmt.Errorf("load node inf failed: could not determine hostname: %s\n", err)
-		}
-		h := bldr.CreateString(hostname)
-		NodeStart(bldr)
-		NodeAddID(bldr, 0)
-		NodeAddHostname(bldr, h)
-		bldr.Finish(NodeEnd(bldr))
-		return GetRootAsNode(bldr.Bytes[bldr.Head():], 0), nil
-	}
-	return GetRootAsNode(b, 0), nil
-}
-
-// Serialize serializes the Node using flatbuffers and returns the []byte.
-func (n *Node) Serialize() []byte {
-	bldr := flatbuffers.NewBuilder(0)
-	h := bldr.CreateByteString(n.Hostname())
-	r := bldr.CreateByteString(n.Region())
-	z := bldr.CreateByteString(n.Zone())
-	d := bldr.CreateByteString(n.DataCenter())
-	NodeStart(bldr)
-	NodeAddID(bldr, n.ID())
-	NodeAddHostname(bldr, h)
-	NodeAddRegion(bldr, r)
-	NodeAddZone(bldr, z)
-	NodeAddDataCenter(bldr, d)
-	bldr.Finish(NodeEnd(bldr))
-	return bldr.Bytes[bldr.Head():]
-}
-
-// Save the current Node to a file.
-func (n *Node) Save(fname string) error {
-	return ioutil.WriteFile(fname, n.Serialize(), 0600)
 }
 
 // Serialize serializes the Client conf.
