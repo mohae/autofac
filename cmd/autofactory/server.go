@@ -69,12 +69,12 @@ func newServer() server {
 // is a cached list of clients.
 func (s *server) LoadInventory() (int, error) {
 	var n int
-	nodes, err := s.DB.Nodes()
+	clients, err := s.DB.Clients()
 	if err != nil {
 		return n, err
 	}
-	for i, c := range nodes {
-		s.Inventory.AddNode(c.ID(), c)
+	for i, c := range clients {
+		s.Inventory.AddClient(string(c.ID()), c)
 		n = i
 	}
 	return n, nil
@@ -89,14 +89,13 @@ func (s *server) connectToInfluxDB() error {
 
 // Client checks the inventory to see if the client exists.  If it exists,
 // a Client is created from the client in the inventory.
-func (s *server) Client(id uint32) (*Client, bool) {
-	c, ok := s.Inventory.Node(id)
+func (s *server) Client(id string) (*Client, bool) {
+	c, ok := s.Inventory.Client(id)
 	if !ok {
 		return nil, false
 	}
 	return &Client{
-		Node:         c,
-		Client:       conf.GetRootAsClient(clientConf, 0),
+		Conf:         c,
 		InfluxClient: s.InfluxClient,
 	}, true
 }
@@ -106,30 +105,29 @@ func (s *server) Client(id uint32) (*Client, bool) {
 // the database results in an error, it will be returned.
 func (s *server) NewClient() (*Client, error) {
 	// get a new client
-	c := s.Inventory.NewNode()
+	c := s.Inventory.NewClient()
 	c.InfluxClient = s.InfluxClient
 	// save the client info to the db
-	err := s.DB.SaveNode(c.Node)
+	err := s.DB.SaveClient(c.Conf)
 	return c, err
 }
 
 // Client holds information about a client.
 type Client struct {
-	*conf.Node
-	*conf.Client
-	WS *websocket.Conn
+	Conf *conf.Client
+	WS   *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
 
-func newClient(id uint32) *Client {
+func newClient(id string) *Client {
 	bldr := flatbuffers.NewBuilder(0)
-	conf.NodeStart(bldr)
-	conf.NodeAddID(bldr, id)
-	bldr.Finish(conf.NodeEnd(bldr))
+	v := bldr.CreateString(id)
+	conf.ClientStart(bldr)
+	conf.ClientAddID(bldr, v)
+	bldr.Finish(conf.ClientEnd(bldr))
 	return &Client{
-		Node:   conf.GetRootAsNode(bldr.Bytes[bldr.Head():], 0),
-		Client: conf.GetRootAsClient(clientConf, 0),
+		Conf: conf.GetRootAsClient(clientConf, 0),
 	}
 }
 
@@ -185,7 +183,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(c.Node.ID(), k, p))
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(string(c.Conf.ID()), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
@@ -199,9 +197,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
-		fmt.Printf("%s: cpu utilization\n", c.Node.Hostname())
+		fmt.Printf("%s: cpu utilization\n", c.Conf.Hostname())
 		cpus := cpuutil.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		var bErr error // this is the last error in the batch, if any
 		// Each cpu is it's own point, make a slice to accommodate them all and process.
 		pts := make([]*influx.Point, 0, len(cpus.CPU))
@@ -224,9 +222,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		}
 		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
 	case message.SysLoadAvg:
-		fmt.Printf("%s: loadavg\n", c.Node.Hostname())
+		fmt.Printf("%s: loadavg\n", c.Conf.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		fields := map[string]interface{}{
 			"one":     l.One,
 			"five":    l.Five,
@@ -235,9 +233,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.SysMemInfo:
-		fmt.Printf("%s: meminfo\n", c.Node.Hostname())
+		fmt.Printf("%s: meminfo\n", c.Conf.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		fields := map[string]interface{}{
 			"total_ram":  m.TotalRAM,
 			"free_ram":   m.FreeRAM,
@@ -249,9 +247,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
 	case message.NetUsage:
-		fmt.Printf("%s: network usage\n", c.Node.Hostname())
+		fmt.Printf("%s: network usage\n", c.Conf.Hostname())
 		ifaces := netf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Node.Hostname()), "region": string(c.Node.Region())}
+		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		var bErr error // the last error in the batch, if any
 		// Make a slice of points whose length is equal to the number of Interfaces
 		// and process the interfaces.
@@ -342,7 +340,6 @@ func (c *ClientConf) Serialize() []byte {
 	conf.ClientStart(bldr)
 	conf.ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
-	conf.ClientAddSaveInterval(bldr, c.SaveInterval.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
@@ -352,5 +349,4 @@ func (c *ClientConf) Deserialize(p []byte) {
 	cnf := conf.GetRootAsClient(p, 0)
 	c.HealthbeatInterval.Set(cnf.HealthbeatInterval())
 	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
-	c.SaveInterval.Set(cnf.SaveInterval())
 }

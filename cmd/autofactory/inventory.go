@@ -4,75 +4,75 @@ import (
 	"sync"
 
 	"github.com/mohae/autofact/conf"
-	"github.com/mohae/autofact/util"
 )
 
 // inventory holds information about all of the nodes the system knows about.
 type inventory struct {
-	nodes map[uint32]*conf.Node
-	mu    sync.Mutex
+	clients map[string]*conf.Client
+	mu      sync.Mutex
 }
 
 func newInventory() inventory {
 	return inventory{
-		nodes: map[uint32]*conf.Node{},
+		clients: make(map[string]*conf.Client),
 	}
 }
 
-// AddNode adds a node's information to the inventory.
-func (i *inventory) AddNode(id uint32, c *conf.Node) {
-	// TODO: should collision detection be done/force update cfg.Node
+// AddNode adds a client's information to the inventory.
+func (i *inventory) AddClient(id string, c *conf.Client) {
+	// TODO: should collision detection be done/force update cfg.Client
 	// if it exists? or generate an error?
 	i.mu.Lock()
-	i.nodes[id] = c
+	i.clients[id] = c
 	i.mu.Unlock()
 }
 
-// SaveNode updates the inventory with a node's information and saves it to
+// SaveClient updates the inventory with a client's information and saves it to
 // the database.
-func (i *inventory) SaveNode(c *conf.Node, p []byte) error {
+func (i *inventory) SaveClient(c *conf.Client, p []byte) error {
 	i.mu.Lock()
-	i.nodes[c.ID()] = c
+	i.clients[string(c.ID())] = c
 	i.mu.Unlock()
-	return srvr.DB.SaveNode(c)
+	return srvr.DB.SaveClient(c)
 }
 
-// NodeExists returns whether or not a specific node is currently in the
+// ClientExists returns whether or not a specific client is currently in the
 // inventory.
-func (i *inventory) NodeExists(id uint32) bool {
+func (i *inventory) ClientExists(id string) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	return i.nodeExists(id)
+	return i.clientExists(id)
 }
 
-// nodeExists returns whether or not the requrested ID is in the inventory.
+// clientExists returns whether or not the requrested ID is in the inventory.
 // This does not do any locking; it is assumed that the color is properly
 // managing the lock's state properly.
-func (i *inventory) nodeExists(id uint32) bool {
-	_, ok := i.nodes[id]
+func (i *inventory) clientExists(id string) bool {
+	_, ok := i.clients[id]
 	return ok
 }
 
-// Node returns true and the information for the requested ID, if it exists,
+// Client returns true and the information for the requested ID, if it exists,
 // otherwise false is returned.
-func (i *inventory) Node(id uint32) (*conf.Node, bool) {
+func (i *inventory) Client(id string) (*conf.Client, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	c, ok := i.nodes[id]
+	c, ok := i.clients[id]
 	return c, ok
 }
 
-// NewNode returns a new Node.  The Node will have its ID set to a unique
+// NewClient returns a new Client.  The Node will have its ID set to a unique
 // value.
-func (i *inventory) NewNode() *Client {
+func (i *inventory) NewClient() *Client {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	for {
-		id := util.RandUint32()
-		if !i.nodeExists(id) {
-			n := newClient(id)
-			i.nodes[id] = n.Node
-			return n
+		// TOD replace with a rand bytes or striing
+		id := ""
+		if !i.clientExists(id) {
+			c := newClient(id)
+			i.clients[id] = c.Conf
+			return c
 		}
 	}
 }

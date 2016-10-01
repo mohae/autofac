@@ -37,16 +37,14 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// if messageType isn't BinaryMessage, reject
-	if typ != websocket.BinaryMessage {
+	if typ != websocket.TextMessage {
 		conn.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request"))
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
 		return
 	}
 	var c *Client
 	var ok bool
-	// the bytes are conf.Node
-	n := conf.GetRootAsNode(p, 0)
-	if n.ID() == 0 {
+	if len(p) == 0 {
 		// get a new client and its ID
 		c, err = srvr.NewClient()
 		if err != nil {
@@ -56,7 +54,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		goto sendInf
 	}
 
-	c, ok = srvr.Client(n.ID())
+	c, ok = srvr.Client(string(p))
 	if !ok {
 		c, err = srvr.NewClient()
 		if err != nil {
@@ -68,28 +66,29 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 sendInf:
 	// update the node with the current inf
 	bldr := flatbuffers.NewBuilder(0)
-	h := bldr.CreateByteString(n.Hostname())
-	rr := bldr.CreateByteString(n.Region())
-	z := bldr.CreateByteString(n.Zone())
-	d := bldr.CreateByteString(n.DataCenter())
-	conf.NodeStart(bldr)
-	conf.NodeAddID(bldr, c.Node.ID())
-	conf.NodeAddHostname(bldr, h)
-	conf.NodeAddRegion(bldr, rr)
-	conf.NodeAddZone(bldr, z)
-	conf.NodeAddDataCenter(bldr, d)
-	bldr.Finish(conf.NodeEnd(bldr))
+	h := bldr.CreateByteString(c.Conf.Hostname())
+	rr := bldr.CreateByteString(c.Conf.Region())
+	z := bldr.CreateByteString(c.Conf.Zone())
+	d := bldr.CreateByteString(c.Conf.DataCenter())
+	id := bldr.CreateByteString(c.Conf.ID())
+	conf.ClientStart(bldr)
+	conf.ClientAddID(bldr, id)
+	conf.ClientAddHostname(bldr, h)
+	conf.ClientAddRegion(bldr, rr)
+	conf.ClientAddZone(bldr, z)
+	conf.ClientAddDataCenter(bldr, d)
+	bldr.Finish(conf.ClientEnd(bldr))
 	b := bldr.Bytes[bldr.Head():]
-	c.Node = conf.GetRootAsNode(b, 0)
+	c.Conf = conf.GetRootAsClient(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing client ID for %X: %s\n", c.Node.ID(), err)
+		fmt.Fprintf(os.Stderr, "error writing client ID for %s: %s\n", c.Conf.ID(), err)
 		return
 	}
 
-	fmt.Printf("%X connected\n", c.Node.ID())
+	fmt.Printf("%s connected\n", c.Conf.ID())
 
 	// save the client inf to the inventory
-	srvr.Inventory.SaveNode(c.Node, b)
+	srvr.Inventory.SaveClient(c.Conf, b)
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf

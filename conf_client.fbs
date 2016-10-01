@@ -2,9 +2,13 @@
 namespace conf;
 
 table Client {
-	HealthbeatInterval: long;
-    HealthbeatPushPeriod: long;
-    SaveInterval: long;
+	ID:string;
+	Hostname:string;
+	Region:string;
+	Zone:string;
+	DataCenter:string;
+	HealthbeatInterval:long;
+	HealthbeatPushPeriod: long;
 }
 
 root_type Client;

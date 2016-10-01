@@ -1,7 +1,6 @@
 package message
 
 import (
-	"encoding/binary"
 	"math"
 	"sync"
 	"time"
@@ -16,13 +15,11 @@ import (
 //   timestamp: int64
 //   sourceID:  uint32
 //   random bits: uint32
-func NewMessageID(source uint32) []byte {
+func NewMessageID(source string) []byte {
 	id := make([]byte, 16)
 	sid := make([]byte, 4)
 	r := make([]byte, 4)
 	tb := util.Int64ToByteSlice(time.Now().UnixNano())
-	binary.LittleEndian.PutUint32(sid, source)
-	binary.LittleEndian.PutUint32(r, util.RandUint32())
 	id[0] = tb[0]
 	id[1] = tb[1]
 	id[2] = tb[2]
@@ -44,7 +41,7 @@ func NewMessageID(source uint32) []byte {
 
 // Serialize creates a flatbuffer serialized message and returns the
 // bytes.
-func Serialize(ID uint32, k Kind, p []byte) []byte {
+func Serialize(ID string, k Kind, p []byte) []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	id := bldr.CreateByteVector(NewMessageID(ID))
 	d := bldr.CreateByteVector(p)

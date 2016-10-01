@@ -95,7 +95,6 @@ func (c *Client) Serialize() []byte {
 	ClientStart(bldr)
 	ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval())
 	ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
-	ClientAddSaveInterval(bldr, c.SaveInterval())
 	bldr.Finish(ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }

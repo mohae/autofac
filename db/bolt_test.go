@@ -8,7 +8,7 @@ import (
 
 	"github.com/boltdb/bolt"
 	"github.com/google/flatbuffers/go"
-	"github.com/mohae/autofact/cfg"
+	"github.com/mohae/autofact/conf"
 )
 
 func TestBoltDB(t *testing.T) {
@@ -39,13 +39,14 @@ func TestBoltDB(t *testing.T) {
 	}
 
 	// Add clients to the bucket
-	IDs := []uint32{1, 11, 42}
+	IDs := []string{"1", "11", "42"}
 	bldr := flatbuffers.NewBuilder(0)
 	for _, v := range IDs {
-		cfg.NodeStart(bldr)
-		cfg.NodeAddID(bldr, v)
-		bldr.Finish(cfg.NodeEnd(bldr))
-		err = db.SaveNode(cfg.GetRootAsNode(bldr.Bytes[bldr.Head():], 0))
+		id := bldr.CreateString(v)
+		conf.ClientStart(bldr)
+		conf.ClientAddID(bldr, id)
+		bldr.Finish(conf.ClientEnd(bldr))
+		err = db.SaveClient(conf.GetRootAsClient(bldr.Bytes[bldr.Head():], 0))
 		if err != nil {
 			t.Errorf("expected no error; got %s", err)
 			return
@@ -54,7 +55,7 @@ func TestBoltDB(t *testing.T) {
 	}
 
 	// get clients
-	ids, err := db.NodeIDs()
+	ids, err := db.ClientIDs()
 	if err != nil {
 		t.Errorf("expected no error; got %s", err)
 		return
@@ -72,7 +73,7 @@ func TestBoltDB(t *testing.T) {
 			}
 		}
 		if !found {
-			t.Errorf("expected %d; not found", v)
+			t.Errorf("expected %v; not found", v)
 			return
 		}
 	}

@@ -1,7 +1,6 @@
 package db
 
 import (
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -70,9 +69,9 @@ func (b *Bolt) CreateBuckets() error {
 	return nil
 }
 
-// NodeIDs returns all NodeIDs within the database.
-func (b *Bolt) NodeIDs() ([]uint32, error) {
-	var ids []uint32
+// ClientIDs returns all NodeIDs within the database.
+func (b *Bolt) ClientIDs() ([]string, error) {
+	var ids []string
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -83,16 +82,16 @@ func (b *Bolt) NodeIDs() ([]uint32, error) {
 		// client id, use it.
 		// clientIDs are uint32, if the key isn't 4 bytes long a panic will occur.
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			ids = append(ids, uint32(k[0])|uint32(k[1])<<8|uint32(k[2])<<16|uint32(k[3])<<24)
+			ids = append(ids, string(k))
 		}
 		return nil
 	})
 	return ids, err
 }
 
-// Nodes returns all the Nodes within the database.
-func (b *Bolt) Nodes() ([]*conf.Node, error) {
-	var nodes []*conf.Node
+// Clients returns all the Nodes within the database.
+func (b *Bolt) Clients() ([]*conf.Client, error) {
+	var clients []*conf.Client
 	err := b.DB.View(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
 		if b == nil {
@@ -101,20 +100,18 @@ func (b *Bolt) Nodes() ([]*conf.Node, error) {
 		c := b.Cursor()
 		// each value is a serialized client.Inf
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			nodes = append(nodes, conf.GetRootAsNode(v, 0))
+			clients = append(clients, conf.GetRootAsClient(v, 0))
 		}
 		return nil
 	})
-	return nodes, err
+	return clients, err
 }
 
-// SaveNode saves a Node in the client bucket.
-func (b *Bolt) SaveNode(c *conf.Node) error {
+// SaveClient saves a Node in the client bucket.
+func (b *Bolt) SaveClient(c *conf.Client) error {
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
-		bid := make([]byte, 4)
-		binary.LittleEndian.PutUint32(bid, c.ID())
-		err := b.Put(bid, c.Serialize())
+		err := b.Put(c.ID(), c.Serialize())
 		if err != nil {
 			return Error{fmt.Sprintf("save client %d", c.ID()), err}
 		}

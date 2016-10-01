@@ -77,9 +77,8 @@ func realMain() int {
 	// TODO add env var support
 
 	// get a client
-	c := client.New(inf)
+	c := client.New(connConf)
 	c.AutoPath = autofactPath
-	c.Conn = connConf
 
 	// connect to the Server
 	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}

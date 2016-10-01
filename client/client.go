@@ -22,8 +22,6 @@ import (
 type Client struct {
 	// The Autofact Path
 	AutoPath string
-	// Node holds the basic client information.
-	*conf.Node
 	// Conn holds the configuration for connecting to the server.
 	conf.Conn
 	// Conf holds the client configuration (how the client behaves).
@@ -45,9 +43,9 @@ type Client struct {
 	ServerURL   url.URL
 }
 
-func New(c *conf.Node) *Client {
+func New(c conf.Conn) *Client {
 	return &Client{
-		Node:        c,
+		Conn:        c,
 		healthbeatQ: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
@@ -82,10 +80,8 @@ func (c *Client) Connect() bool {
 		time.Sleep(c.ConnectInterval.Duration)
 		fmt.Printf("unable to connect to the server %s: retrying...\n", c.ServerURL.String())
 	}
-	// Send the ClientInf.  If the ID == 0 or it can't be found, the server will
-	// respond with one.  Retry until the server responds, or until the
-	// reconnectPeriod has expired.
-	err := c.WS.WriteMessage(websocket.BinaryMessage, c.Node.Serialize())
+	// Send the ID
+	err := c.WS.WriteMessage(websocket.TextMessage, []byte(c.Conn.ID))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
 		c.WS.Close()
@@ -107,8 +103,6 @@ handshake:
 			// process according to message kind
 			msg := message.GetRootAsMessage(p, 0)
 			switch message.Kind(msg.Kind()) {
-			case message.SysInf:
-				c.Node = conf.GetRootAsNode(msg.DataBytes(), 0)
 			case message.ClientConf:
 				c.Client = conf.GetRootAsClient(msg.DataBytes(), 0)
 			case message.EOT:
@@ -125,7 +119,7 @@ handshake:
 			return false
 		}
 	}
-	fmt.Printf("%X connected\n", c.Node.ID())
+	fmt.Printf("%X connected\n", c.Conn.ID)
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
@@ -358,14 +352,14 @@ func (c *Client) SendHealthbeatMessages() error {
 		if !ok { // nothing left to send
 			break
 		}
-		c.SendB <- message.Serialize(c.Node.ID(), m.Kind, m.Data)
+		c.SendB <- message.Serialize(c.Conn.ID, m.Kind, m.Data)
 	}
 	return nil
 }
 
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.SendB <- message.Serialize(c.Node.ID(), kind, p)
+	c.SendB <- message.Serialize(c.Conn.ID, kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
