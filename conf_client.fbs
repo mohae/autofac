@@ -2,7 +2,7 @@
 namespace conf;
 
 table Client {
-	ID:string;
+	ID:[ubyte];
 	Hostname:string;
 	Region:string;
 	Zone:string;

@@ -39,9 +39,6 @@ var (
 	autofactoryPath    = "$HOME/.autofactory"
 	autofactoryEnvName = "AUTOFACTORY_PATH"
 
-	// the serialized default client conf.  The data is originally loaded from the
-	// server's clientConf file, which is specified by clientConfFile.
-	clientConf     []byte
 	clientConfFile string
 )
 
@@ -109,8 +106,7 @@ func realMain() int {
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
 	// client, or group, or role, or pod, etc.
-	var cConf ClientConf
-	err = cConf.Load(clientConfFile)
+	err = srvr.ClientConf.Load(clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			fmt.Fprintf(os.Stderr, "error loading the client configuration file: %s\n", err)
@@ -118,17 +114,14 @@ func realMain() int {
 		}
 		// If it didn't exist; use application defaults
 		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", clientConfFile)
-		cConf.UseAppDefaults()
+		srvr.ClientConf.UseAppDefaults()
 		// write this out to the app dir
-		err = cConf.SaveAsJSON(clientConfFile)
+		err = srvr.ClientConf.SaveAsJSON(clientConfFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 	}
-
-	clientConf = cConf.Serialize()
-	srvr.ClientConf = clientConf
 
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open(srvr.BoltDBFile)

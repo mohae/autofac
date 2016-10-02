@@ -18,6 +18,8 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 )
 
+const IDLen = 8
+
 // Client is anything that talks to the server.
 type Client struct {
 	// The Autofact Path

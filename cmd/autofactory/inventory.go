@@ -19,26 +19,27 @@ func newInventory() inventory {
 }
 
 // AddNode adds a client's information to the inventory.
-func (i *inventory) AddClient(id string, c *conf.Client) {
+func (i *inventory) AddClient(c *conf.Client) {
 	// TODO: should collision detection be done/force update cfg.Client
 	// if it exists? or generate an error?
 	i.mu.Lock()
-	i.clients[id] = c
+	i.clients[string(c.IDBytes())] = c
 	i.mu.Unlock()
 }
 
 // SaveClient updates the inventory with a client's information and saves it to
 // the database.
+// TODO: should this just receive the conf.Client and serialize itself?
 func (i *inventory) SaveClient(c *conf.Client, p []byte) error {
 	i.mu.Lock()
-	i.clients[string(c.ID())] = c
+	i.clients[string(c.IDBytes())] = c
 	i.mu.Unlock()
 	return srvr.DB.SaveClient(c)
 }
 
 // ClientExists returns whether or not a specific client is currently in the
 // inventory.
-func (i *inventory) ClientExists(id string) bool {
+func (i *inventory) ClientExists(id []byte) bool {
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	return i.clientExists(id)
@@ -47,32 +48,16 @@ func (i *inventory) ClientExists(id string) bool {
 // clientExists returns whether or not the requrested ID is in the inventory.
 // This does not do any locking; it is assumed that the color is properly
 // managing the lock's state properly.
-func (i *inventory) clientExists(id string) bool {
-	_, ok := i.clients[id]
+func (i *inventory) clientExists(id []byte) bool {
+	_, ok := i.clients[string(id)]
 	return ok
 }
 
 // Client returns true and the information for the requested ID, if it exists,
 // otherwise false is returned.
-func (i *inventory) Client(id string) (*conf.Client, bool) {
+func (i *inventory) Client(id []byte) (*conf.Client, bool) {
 	i.mu.Lock()
 	defer i.mu.Unlock()
-	c, ok := i.clients[id]
+	c, ok := i.clients[string(id)]
 	return c, ok
-}
-
-// NewClient returns a new Client.  The Node will have its ID set to a unique
-// value.
-func (i *inventory) NewClient() *Client {
-	i.mu.Lock()
-	defer i.mu.Unlock()
-	for {
-		// TOD replace with a rand bytes or striing
-		id := ""
-		if !i.clientExists(id) {
-			c := newClient(id)
-			i.clients[id] = c.Conf
-			return c
-		}
-	}
 }

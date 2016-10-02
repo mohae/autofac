@@ -36,7 +36,8 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 		return
 	}
-	// if messageType isn't BinaryMessage, reject
+	// if messageType isn't TextMessage, reject.  It should either be empty or
+	// have a client ID.
 	if typ != websocket.TextMessage {
 		conn.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request"))
 		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
@@ -45,20 +46,21 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	var c *Client
 	var ok bool
 	if len(p) == 0 {
+		fmt.Println("new clientid")
 		// get a new client and its ID
 		c, err = srvr.NewClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to create new client")
+			fmt.Fprintf(os.Stderr, "unable to create new client: %s\n", err)
 			return
 		}
 		goto sendInf
 	}
 
-	c, ok = srvr.Client(string(p))
+	c, ok = srvr.Client(p)
 	if !ok {
 		c, err = srvr.NewClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to create new client")
+			fmt.Fprintf(os.Stderr, "unable to create new client: %s\n", err)
 			return
 		}
 	}
@@ -70,7 +72,7 @@ sendInf:
 	rr := bldr.CreateByteString(c.Conf.Region())
 	z := bldr.CreateByteString(c.Conf.Zone())
 	d := bldr.CreateByteString(c.Conf.DataCenter())
-	id := bldr.CreateByteString(c.Conf.ID())
+	id := bldr.CreateByteVector(c.Conf.IDBytes())
 	conf.ClientStart(bldr)
 	conf.ClientAddID(bldr, id)
 	conf.ClientAddHostname(bldr, h)
@@ -81,11 +83,11 @@ sendInf:
 	b := bldr.Bytes[bldr.Head():]
 	c.Conf = conf.GetRootAsClient(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing client ID for %s: %s\n", c.Conf.ID(), err)
+		fmt.Fprintf(os.Stderr, "error writing client ID for %s: %s\n", string(c.Conf.IDBytes()), err)
 		return
 	}
 
-	fmt.Printf("%s connected\n", c.Conf.ID())
+	fmt.Printf("%s connected\n", string(c.Conf.IDBytes()))
 
 	// save the client inf to the inventory
 	srvr.Inventory.SaveClient(c.Conf, b)
@@ -93,8 +95,8 @@ sendInf:
 	c.WS = conn
 	// send the inf
 	c.WriteBinaryMessage(message.SysInf, b)
-	// send the default config
-	c.WriteBinaryMessage(message.ClientConf, srvr.ClientConf)
+	// send the client info
+	c.WriteBinaryMessage(message.ClientConf, b)
 	// send EOM
 	c.WriteBinaryMessage(message.EOT, nil)
 	// start a message handler for the client

@@ -109,11 +109,12 @@ func (b *Bolt) Clients() ([]*conf.Client, error) {
 
 // SaveClient saves a Node in the client bucket.
 func (b *Bolt) SaveClient(c *conf.Client) error {
+	fmt.Printf("%q\t%dv\n", string(c.IDBytes()), c.HealthbeatInterval())
 	return b.DB.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket([]byte(Client.String()))
-		err := b.Put(c.ID(), c.Serialize())
+		err := b.Put(c.IDBytes(), c.Serialize())
 		if err != nil {
-			return Error{fmt.Sprintf("save client %d", c.ID()), err}
+			return Error{fmt.Sprintf("save client %s", c.IDBytes()), err}
 		}
 		return nil
 	})

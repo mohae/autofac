@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
@@ -21,6 +22,7 @@ import (
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
+	"github.com/mohae/randchars"
 )
 
 // Defaults for Client Conf: if file doesn't exist.
@@ -39,8 +41,8 @@ type server struct {
 	ID uint32 `json:"-"`
 	// URL of the server
 	url.URL `json:"-"`
-	// Flatbuffers serialized default client config.
-	ClientConf []byte `json:"-"`
+	// Default client config.
+	ClientConf `json:"-"`
 	// A map of clients, by ID
 	Inventory inventory `json:"-"`
 	// TODO: add handling to prevent the same client from connecting
@@ -74,7 +76,7 @@ func (s *server) LoadInventory() (int, error) {
 		return n, err
 	}
 	for i, c := range clients {
-		s.Inventory.AddClient(string(c.ID()), c)
+		s.Inventory.AddClient(c)
 		n = i
 	}
 	return n, nil
@@ -89,7 +91,7 @@ func (s *server) connectToInfluxDB() error {
 
 // Client checks the inventory to see if the client exists.  If it exists,
 // a Client is created from the client in the inventory.
-func (s *server) Client(id string) (*Client, bool) {
+func (s *server) Client(id []byte) (*Client, bool) {
 	c, ok := s.Inventory.Client(id)
 	if !ok {
 		return nil, false
@@ -103,13 +105,41 @@ func (s *server) Client(id string) (*Client, bool) {
 // NewClient creates a new Node, adds it to the server's inventory and
 // returns the client.Inf to the caller.   If the save of the Client's inf to
 // the database results in an error, it will be returned.
-func (s *server) NewClient() (*Client, error) {
+func (s *server) NewClient() (c *Client, err error) {
 	// get a new client
-	c := s.Inventory.NewClient()
-	c.InfluxClient = s.InfluxClient
+	s.Inventory.mu.Lock()
+	defer s.Inventory.mu.Unlock()
+	for {
+		// TOD replace with a rand bytes or striing
+		id := randchars.AlphaNum(client.IDLen)
+		fmt.Println(string(id))
+		if !s.Inventory.clientExists(id) {
+			c = s.newClient(id)
+			s.Inventory.clients[string(id)] = c.Conf
+			c.InfluxClient = s.InfluxClient
+			break
+		}
+	}
 	// save the client info to the db
-	err := s.DB.SaveClient(c.Conf)
+	err = s.DB.SaveClient(c.Conf)
 	return c, err
+}
+
+func (s *server) newClient(id []byte) *Client {
+	fmt.Println("new client\t", string(id))
+	bldr := flatbuffers.NewBuilder(0)
+	v := bldr.CreateByteVector(id)
+	conf.ClientStart(bldr)
+	conf.ClientAddID(bldr, v)
+	conf.ClientAddHealthbeatInterval(bldr, s.HealthbeatInterval.Int64())
+	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
+	bldr.Finish(conf.ClientEnd(bldr))
+	c := Client{
+		Conf: conf.GetRootAsClient(bldr.Bytes[bldr.Head():], 0),
+	}
+
+	fmt.Printf("conf %q\n", string(c.Conf.IDBytes()))
+	return &c
 }
 
 // Client holds information about a client.
@@ -118,17 +148,6 @@ type Client struct {
 	WS   *websocket.Conn
 	*InfluxClient
 	isConnected bool
-}
-
-func newClient(id string) *Client {
-	bldr := flatbuffers.NewBuilder(0)
-	v := bldr.CreateString(id)
-	conf.ClientStart(bldr)
-	conf.ClientAddID(bldr, v)
-	bldr.Finish(conf.ClientEnd(bldr))
-	return &Client{
-		Conf: conf.GetRootAsClient(clientConf, 0),
-	}
 }
 
 // Listen listens for messages and handles them accordingly.  Binary messages
@@ -183,7 +202,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
 func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(string(c.Conf.ID()), k, p))
+	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(string(c.Conf.IDBytes()), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.
