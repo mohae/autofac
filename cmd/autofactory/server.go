@@ -54,11 +54,9 @@ type server struct {
 	*InfluxClient `json:"-"`
 	// DB info.
 	// TODO: should this be persisted; if not, remove the json tags
-	BoltDBFile     string `json:"bolt_db_file"`
-	InfluxDBName   string `json:"influx_db_name"`
-	InfluxUser     string `json:"influx_user"`
-	InfluxPassword string `json:"influx_password"`
-	InfluxAddress  string `json:"influx_address"`
+	BoltDBFile    string `json:"bolt_db_file"`
+	InfluxDBName  string `json:"influx_db_name"`
+	InfluxAddress string `json:"influx_address"`
 }
 
 func newServer() server {
@@ -83,9 +81,9 @@ func (s *server) LoadInventory() (int, error) {
 }
 
 // connects to InfluxDB
-func (s *server) connectToInfluxDB() error {
+func (s *server) connectToInfluxDB(u, p string) error {
 	var err error
-	s.InfluxClient, err = newInfluxClient(srvr.InfluxDBName, srvr.InfluxAddress, srvr.InfluxUser, srvr.InfluxPassword)
+	s.InfluxClient, err = newInfluxClient(srvr.InfluxDBName, srvr.InfluxAddress, u, p)
 	return err
 }
 

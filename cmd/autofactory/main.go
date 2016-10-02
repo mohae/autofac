@@ -40,6 +40,8 @@ var (
 	autofactoryEnvName = "AUTOFACTORY_PATH"
 
 	clientConfFile string
+	influxUser     string
+	influxPassword string
 )
 
 // flags
@@ -54,10 +56,10 @@ func init() {
 	flag.StringVar(&srvr.InfluxDBName, iVar, "autofacts", "name of the InfluxDB to connect to (short)")
 	flag.StringVar(&srvr.InfluxAddress, addressVar, "127.0.0.1:8086", "the address of the InfluxDB")
 	flag.StringVar(&srvr.InfluxAddress, aVar, "http://127.0.0.1:8086", "the address of the InfluxDB (short)")
-	flag.StringVar(&srvr.InfluxUser, usernameVar, "autoadmin", "the username of the InfluxDB user")
-	flag.StringVar(&srvr.InfluxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
-	flag.StringVar(&srvr.InfluxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
-	flag.StringVar(&srvr.InfluxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
+	flag.StringVar(&influxUser, usernameVar, "autoadmin", "the username of the InfluxDB user")
+	flag.StringVar(&influxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
+	flag.StringVar(&influxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
+	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
 }
 
 func main() {
@@ -131,7 +133,7 @@ func realMain() int {
 	}
 
 	// connect to Influx
-	err = srvr.connectToInfluxDB()
+	err = srvr.connectToInfluxDB(influxUser, influxPassword)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", srvr.InfluxDBName, err)
 		return 1
