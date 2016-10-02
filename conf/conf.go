@@ -92,7 +92,9 @@ func (c *Conn) SetFilename(v string) {
 // Serialize serializes the Client conf.
 func (c *Client) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
+	id := bldr.CreateByteVector(c.IDBytes())
 	ClientStart(bldr)
+	ClientAddID(bldr, id)
 	ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval())
 	ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
 	bldr.Finish(ClientEnd(bldr))

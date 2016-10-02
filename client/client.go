@@ -130,7 +130,7 @@ handshake:
 			return false
 		}
 	}
-	fmt.Printf("%X connected\n", c.Conn.ID)
+	fmt.Printf("%s connected\n", c.Conn.ID)
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()

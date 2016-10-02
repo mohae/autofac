@@ -89,8 +89,8 @@ sendInf:
 
 	fmt.Printf("%s connected\n", string(c.Conf.IDBytes()))
 
-	// save the client inf to the inventory
-	srvr.Inventory.SaveClient(c.Conf, b)
+	// Add the client inf to the inventory
+	srvr.Inventory.AddClient(c.Conf)
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf

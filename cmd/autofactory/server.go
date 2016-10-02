@@ -126,7 +126,6 @@ func (s *server) NewClient() (c *Client, err error) {
 }
 
 func (s *server) newClient(id []byte) *Client {
-	fmt.Println("new client\t", string(id))
 	bldr := flatbuffers.NewBuilder(0)
 	v := bldr.CreateByteVector(id)
 	conf.ClientStart(bldr)
@@ -138,7 +137,6 @@ func (s *server) newClient(id []byte) *Client {
 		Conf: conf.GetRootAsClient(bldr.Bytes[bldr.Head():], 0),
 	}
 
-	fmt.Printf("conf %q\n", string(c.Conf.IDBytes()))
 	return &c
 }
 

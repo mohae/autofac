@@ -27,16 +27,6 @@ func (i *inventory) AddClient(c *conf.Client) {
 	i.mu.Unlock()
 }
 
-// SaveClient updates the inventory with a client's information and saves it to
-// the database.
-// TODO: should this just receive the conf.Client and serialize itself?
-func (i *inventory) SaveClient(c *conf.Client, p []byte) error {
-	i.mu.Lock()
-	i.clients[string(c.IDBytes())] = c
-	i.mu.Unlock()
-	return srvr.DB.SaveClient(c)
-}
-
 // ClientExists returns whether or not a specific client is currently in the
 // inventory.
 func (i *inventory) ClientExists(id []byte) bool {
