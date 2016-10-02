@@ -27,7 +27,7 @@ type Client struct {
 	// Conn holds the configuration for connecting to the server.
 	conf.Conn
 	// Conf holds the client configuration (how the client behaves).
-	*conf.Client
+	Conf *conf.Client
 
 	// queue of healthbeat messages to be sent.
 	healthbeatQ message.Queue
@@ -105,7 +105,17 @@ handshake:
 			msg := message.GetRootAsMessage(p, 0)
 			switch message.Kind(msg.Kind()) {
 			case message.ClientConf:
-				c.Client = conf.GetRootAsClient(msg.DataBytes(), 0)
+				c.Conf = conf.GetRootAsClient(msg.DataBytes(), 0)
+				// If there's a new ID, persist it/
+				if c.Conn.ID != string(c.Conf.IDBytes()) {
+					c.Conn.ID = string(c.Conf.IDBytes()) // save the ID; if it was an
+					err := c.Save()
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "error while saving Conn info: %s\n", err)
+						c.WS.Close()
+						return false
+					}
+				}
 			case message.EOT:
 				break handshake
 			default:
@@ -252,13 +262,13 @@ func (c *Client) IsConnected() bool {
 // generated.
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
-	if c.Client.HealthbeatInterval() == 0 {
+	if c.Conf.HealthbeatInterval() == 0 {
 		return
 	}
 	// error channel
 	errCh := make(chan error)
 	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Client.HealthbeatInterval()))
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -268,7 +278,7 @@ func (c *Client) Healthbeat() {
 	defer cpuTickr.Close()
 	defer cpuTickr.Stop()
 	// ticker for loadavg data
-	loadTicker, err := loadf.NewTicker(time.Duration(c.Client.HealthbeatInterval()))
+	loadTicker, err := loadf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -278,7 +288,7 @@ func (c *Client) Healthbeat() {
 	defer loadTickr.Close()
 	defer loadTickr.Stop()
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Client.HealthbeatInterval()))
+	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -288,7 +298,7 @@ func (c *Client) Healthbeat() {
 	defer memTickr.Close()
 	defer memTickr.Stop()
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Client.HealthbeatInterval()))
+	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
 	if err != nil {
 		errCh <- err
 		return
@@ -299,7 +309,7 @@ func (c *Client) Healthbeat() {
 	defer netTickr.Stop()
 	//	go mem.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), memCh, doneCh, errCh)
 	//	go net.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), netdevCh, doneCh, errCh)
-	t := time.NewTicker(time.Duration(c.Client.HealthbeatPushPeriod()))
+	t := time.NewTicker(time.Duration(c.Conf.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
 		select {
@@ -371,7 +381,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.ClientConf:
-		c.Client.Deserialize(msg.DataBytes())
+		c.Conf.Deserialize(msg.DataBytes())
 	default:
 		fmt.Println("unknown message kind")
 		fmt.Println(string(p))
