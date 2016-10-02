@@ -99,7 +99,6 @@ handshake:
 			c.WS.Close()
 			return false
 		}
-
 		switch typ {
 		case websocket.BinaryMessage:
 			// process according to message kind

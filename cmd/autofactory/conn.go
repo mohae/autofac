@@ -94,8 +94,6 @@ sendInf:
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf
-	c.WriteBinaryMessage(message.SysInf, b)
-	// send the client info
 	c.WriteBinaryMessage(message.ClientConf, b)
 	// send EOM
 	c.WriteBinaryMessage(message.EOT, nil)
