@@ -118,3 +118,13 @@ func (b *Bolt) SaveClient(c *conf.Client) error {
 		return nil
 	})
 }
+
+func (b *Bolt) GetClient(id []byte) (c *conf.Client, err error) {
+	err = b.DB.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(Client.String()))
+		v := b.Get(id)
+		c = conf.GetRootAsClient(v, 0)
+		return nil
+	})
+	return c, err
+}
