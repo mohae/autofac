@@ -130,6 +130,7 @@ func (s *server) newClient(id []byte) *Client {
 	conf.ClientStart(bldr)
 	conf.ClientAddID(bldr, v)
 	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
+	conf.ClientAddMemInfoPeriod(bldr, s.MemInfoPeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	c := Client{
