@@ -48,8 +48,8 @@ var (
 func init() {
 	flag.StringVar(&connConf.ServerPort, portVar, "8675", "port to use for websockets")
 	flag.StringVar(&connConf.ServerPort, oVar, "8675", "port to use for websockets (short)")
-	flag.StringVar(&clientConfFile, clientConfVar, "autofact.json", "location of client configuration file")
-	flag.StringVar(&clientConfFile, cVar, "autofact.json", "location of client configuration file (short)")
+	flag.StringVar(&clientConfFile, clientConfVar, "autofactory.json", "location of client configuration file")
+	flag.StringVar(&clientConfFile, cVar, "autofactory.json", "location of client configuration file (short)")
 	flag.StringVar(&srvr.BoltDBFile, dbfileVar, "autofactory.bdb", "location of the autofactory database file")
 	flag.StringVar(&srvr.BoltDBFile, dVar, "autofactory.bdb", "location of the autfactory database file (short)")
 	flag.StringVar(&srvr.InfluxDBName, influxDBNameVar, "autofacts", "name of the InfluxDB to connect to")
