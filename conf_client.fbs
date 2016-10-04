@@ -10,6 +10,7 @@ table Client {
 	HealthbeatPeriod:long;
 	HealthbeatPushPeriod:long;
 	MemInfoPeriod: long;
+	CPUUtilizationPeriod: long;
 }
 
 root_type Client;

@@ -30,6 +30,7 @@ var (
 	DefaultHealthbeatPeriod     = util.Duration{10 * time.Second}
 	DefaultHealthbeatPushPeriod = util.Duration{15 * time.Second}
 	DefaultMemInfoPeriod        = util.Duration{time.Minute}
+	DefaultCPUUtilizationPeriod = util.Duration{time.Minute}
 	DefaultSaveInterval         = util.Duration{30 * time.Second}
 )
 
@@ -131,6 +132,7 @@ func (s *server) newClient(id []byte) *Client {
 	conf.ClientAddID(bldr, v)
 	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, s.MemInfoPeriod.Int64())
+	conf.ClientAddCPUUtilizationPeriod(bldr, s.CPUUtilizationPeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	c := Client{
@@ -337,9 +339,10 @@ func (c *Client) processBinaryMessage(p []byte) error {
 // All communication of conf data between Server and Client (Node) is done
 // with Flatbuffers serialization.
 type ClientConf struct {
-	MemInfoPeriod        util.Duration `json:"meminfo_period"`
 	HealthbeatPeriod     util.Duration `json:"healthbeat_period"`
 	HealthbeatPushPeriod util.Duration `json:"healthbeat_push_period"`
+	CPUUtilizationPeriod util.Duration `json:"cpuutilization_period"`
+	MemInfoPeriod        util.Duration `json:"meminfo_period"`
 	SaveInterval         util.Duration `json:"save_interval"`
 	WriteWait            util.Duration `json:"-"`
 }
@@ -361,6 +364,7 @@ func (c *ClientConf) Load(file string) error {
 // the Conf file cannot be found.
 func (c *ClientConf) UseAppDefaults() {
 	c.HealthbeatPeriod = DefaultHealthbeatPeriod
+	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
 	c.MemInfoPeriod = DefaultMemInfoPeriod
 	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
 	c.SaveInterval = DefaultSaveInterval
@@ -385,6 +389,7 @@ func (c *ClientConf) Serialize() []byte {
 	conf.ClientStart(bldr)
 	conf.ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, c.MemInfoPeriod.Int64())
+	conf.ClientAddCPUUtilizationPeriod(bldr, c.CPUUtilizationPeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
@@ -395,5 +400,6 @@ func (c *ClientConf) Deserialize(p []byte) {
 	cnf := conf.GetRootAsClient(p, 0)
 	c.HealthbeatPeriod.Set(cnf.HealthbeatPeriod())
 	c.MemInfoPeriod.Set(cnf.MemInfoPeriod())
+	c.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
 	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
 }

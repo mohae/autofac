@@ -284,16 +284,6 @@ func (c *Client) Healthbeat() {
 	}
 	// error channel
 	errCh := make(chan error)
-	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
-	if err != nil {
-		errCh <- err
-		return
-	}
-	cpuTickr := cpuTicker.(*cpuutil.Ticker)
-	// make sure the resources get cleaned up
-	defer cpuTickr.Close()
-	defer cpuTickr.Stop()
 	// ticker for meminfo data
 	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	if err != nil {
@@ -320,14 +310,6 @@ func (c *Client) Healthbeat() {
 	defer t.Stop()
 	for {
 		select {
-		case data, ok := <-cpuTickr.Data:
-			if !ok {
-				fmt.Println("cpu utilization chan closed")
-				goto done
-			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
-		case err := <-cpuTickr.Errs:
-			fmt.Fprintln(os.Stderr, err)
 		case data, ok := <-memTickr.Data:
 			if !ok {
 				fmt.Println("mem info chan closed")
@@ -351,6 +333,35 @@ func (c *Client) Healthbeat() {
 done:
 	// Flush the queue.
 	c.SendHealthbeatMessages()
+}
+
+func (c *Client) CPUUtilization(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Conf.CPUUtilizationPeriod() == 0 {
+		return
+	}
+	// ticker for cpu utilization data
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "CPUUtilization: error creating ticker: %s", err)
+		return
+	}
+	cpuTickr := cpuTicker.(*cpuutil.Ticker)
+	// make sure the resources get cleaned up
+	defer cpuTickr.Close()
+	defer cpuTickr.Stop()
+	for {
+		select {
+		case data, ok := <-cpuTickr.Data:
+			if !ok {
+				fmt.Println("CPUUtilization ticker closed")
+				return
+			}
+			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
+		case <-doneCh:
+			return
+		}
+	}
 }
 
 func (c *Client) MemInfo(doneCh chan struct{}) {
