@@ -353,6 +353,34 @@ done:
 	c.SendHealthbeatMessages()
 }
 
+func (c *Client) MemInfo(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Conf.MemInfoPeriod() == 0 {
+		return
+	}
+	// ticker for meminfo data
+	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "error creating ticker for MemInfo: %s", err)
+		return
+	}
+	memTickr := memTicker.(*memf.Ticker)
+	defer memTickr.Close()
+	defer memTickr.Stop()
+	for {
+		select {
+		case data, ok := <-memTickr.Data:
+			if !ok {
+				fmt.Println("mem info chan closed")
+				return
+			}
+			c.healthbeatQ.Enqueue(message.QMessage{message.MemInfo, data})
+		case <-doneCh:
+			return
+		}
+	}
+}
+
 // SendHealthbeatMessages sends everything in the healthbeat queue.
 // TODO:  should this be more resilient?
 func (c *Client) SendHealthbeatMessages() error {
