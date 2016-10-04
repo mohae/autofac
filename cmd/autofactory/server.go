@@ -31,6 +31,7 @@ var (
 	DefaultHealthbeatPushPeriod = util.Duration{15 * time.Second}
 	DefaultMemInfoPeriod        = util.Duration{time.Minute}
 	DefaultCPUUtilizationPeriod = util.Duration{time.Minute}
+	DefaultNetUsagePeriod       = util.Duration{5 * time.Minute}
 	DefaultSaveInterval         = util.Duration{30 * time.Second}
 )
 
@@ -133,6 +134,7 @@ func (s *server) newClient(id []byte) *Client {
 	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, s.MemInfoPeriod.Int64())
 	conf.ClientAddCPUUtilizationPeriod(bldr, s.CPUUtilizationPeriod.Int64())
+	conf.ClientAddNetUsagePeriod(bldr, s.NetUsagePeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	c := Client{
@@ -343,6 +345,7 @@ type ClientConf struct {
 	HealthbeatPushPeriod util.Duration `json:"healthbeat_push_period"`
 	CPUUtilizationPeriod util.Duration `json:"cpuutilization_period"`
 	MemInfoPeriod        util.Duration `json:"meminfo_period"`
+	NetUsagePeriod       util.Duration `json:"netusage_period"`
 	SaveInterval         util.Duration `json:"save_interval"`
 	WriteWait            util.Duration `json:"-"`
 }
@@ -366,6 +369,7 @@ func (c *ClientConf) UseAppDefaults() {
 	c.HealthbeatPeriod = DefaultHealthbeatPeriod
 	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
 	c.MemInfoPeriod = DefaultMemInfoPeriod
+	c.NetUsagePeriod = DefaultNetUsagePeriod
 	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
 	c.SaveInterval = DefaultSaveInterval
 	// WriteWait isn't set because it isn't being used yet.
@@ -390,6 +394,7 @@ func (c *ClientConf) Serialize() []byte {
 	conf.ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, c.MemInfoPeriod.Int64())
 	conf.ClientAddCPUUtilizationPeriod(bldr, c.CPUUtilizationPeriod.Int64())
+	conf.ClientAddNetUsagePeriod(bldr, c.NetUsagePeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
@@ -401,5 +406,6 @@ func (c *ClientConf) Deserialize(p []byte) {
 	c.HealthbeatPeriod.Set(cnf.HealthbeatPeriod())
 	c.MemInfoPeriod.Set(cnf.MemInfoPeriod())
 	c.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
+	c.NetUsagePeriod.Set(cnf.NetUsagePeriod())
 	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
 }

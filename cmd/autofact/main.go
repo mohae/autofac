@@ -102,6 +102,7 @@ func realMain() int {
 	go c.Healthbeat()
 	go c.MemInfo(doneCh)
 	go c.CPUUtilization(doneCh)
+	go c.NetUsage(doneCh)
 	// start the connection handler
 	go c.MessageWriter(doneCh)
 	// if connected, save the conf: this will also save the ClientID

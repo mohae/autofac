@@ -374,6 +374,35 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 	}
 }
 
+func (c *Client) NetUsage(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Conf.NetUsagePeriod() == 0 {
+		return
+	}
+	// ticker for network usage data
+	netTicker, err := netf.NewTicker(time.Duration(c.Conf.NetUsagePeriod()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "NetUsage: error creating ticker: %s", err)
+		return
+	}
+	netTickr := netTicker.(*netf.Ticker)
+	// make sure the resources get cleaned up
+	defer netTickr.Close()
+	defer netTickr.Stop()
+	for {
+		select {
+		case data, ok := <-netTickr.Data:
+			if !ok {
+				fmt.Println("NetUsage ticker closed")
+				return
+			}
+			c.healthbeatQ.Enqueue(message.QMessage{message.NetUsage, data})
+		case <-doneCh:
+			return
+		}
+	}
+}
+
 // SendHealthbeatMessages sends everything in the healthbeat queue.
 // TODO:  should this be more resilient?
 func (c *Client) SendHealthbeatMessages() error {

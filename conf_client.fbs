@@ -10,6 +10,7 @@ table Client {
 	HealthbeatPeriod:long;
 	HealthbeatPushPeriod:long;
 	MemInfoPeriod: long;
+	NetUsagePeriod: long;
 	CPUUtilizationPeriod: long;
 }
 
