@@ -7,7 +7,7 @@ table Client {
 	Region:string;
 	Zone:string;
 	DataCenter:string;
-	HealthbeatInterval:long;
+	HealthbeatPeriod:long;
 	HealthbeatPushPeriod: long;
 }
 

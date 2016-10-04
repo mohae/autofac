@@ -201,13 +201,20 @@ func (c *Client) Listen(doneCh chan struct{}) {
 		switch typ {
 		case websocket.TextMessage:
 			fmt.Printf("textmessage: %s\n", p)
+			if bytes.Equal(p, autofact.LoadAvg) {
+				err = c.LoadAvg()
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "loadavg error: %s", err)
+				}
+				continue
+			}
 			if bytes.Equal(p, autofact.AckMsg) {
 				// if this is an acknowledgement message, do nothing
 				// TODO: should tracking of acks, per message, for certain
 				// message kinds be done?
 				continue
 			}
-			err := c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
+			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); !ok {
 					return
@@ -249,6 +256,16 @@ func (c *Client) Listen(doneCh chan struct{}) {
 	}
 }
 
+// LoadAvg gets the current loadavg and pushes the bytes into the message queue
+func (c *Client) LoadAvg() error {
+	p, err := loadf.Get()
+	if err != nil {
+		return err
+	}
+	c.SendB <- message.Serialize(c.Conn.ID, message.SysLoadAvg, p)
+	return nil
+}
+
 // IsConnected returns if the client is connected.
 func (c *Client) IsConnected() bool {
 	c.mu.Lock()
@@ -262,13 +279,13 @@ func (c *Client) IsConnected() bool {
 // generated.
 func (c *Client) Healthbeat() {
 	// An interval of 0 means no healthbeat
-	if c.Conf.HealthbeatInterval() == 0 {
+	if c.Conf.HealthbeatPeriod() == 0 {
 		return
 	}
 	// error channel
 	errCh := make(chan error)
 	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	if err != nil {
 		errCh <- err
 		return
@@ -277,18 +294,8 @@ func (c *Client) Healthbeat() {
 	// make sure the resources get cleaned up
 	defer cpuTickr.Close()
 	defer cpuTickr.Stop()
-	// ticker for loadavg data
-	loadTicker, err := loadf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
-	if err != nil {
-		errCh <- err
-		return
-	}
-	loadTickr := loadTicker.(*loadf.Ticker)
-	// make sure the resources get cleaned up
-	defer loadTickr.Close()
-	defer loadTickr.Stop()
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	if err != nil {
 		errCh <- err
 		return
@@ -298,7 +305,7 @@ func (c *Client) Healthbeat() {
 	defer memTickr.Close()
 	defer memTickr.Stop()
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatInterval()))
+	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	if err != nil {
 		errCh <- err
 		return
@@ -307,8 +314,8 @@ func (c *Client) Healthbeat() {
 	// make sure the resources get cleaned up
 	defer netTickr.Close()
 	defer netTickr.Stop()
-	//	go mem.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), memCh, doneCh, errCh)
-	//	go net.DataTicker(time.Duration(c.Conf.HealthbeatInterval()), netdevCh, doneCh, errCh)
+	//	go mem.DataTicker(time.Duration(c.Conf.HealthbeatPeriod()), memCh, doneCh, errCh)
+	//	go net.DataTicker(time.Duration(c.Conf.HealthbeatPeriod()), netdevCh, doneCh, errCh)
 	t := time.NewTicker(time.Duration(c.Conf.HealthbeatPushPeriod()))
 	defer t.Stop()
 	for {
@@ -320,14 +327,6 @@ func (c *Client) Healthbeat() {
 			}
 			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
 		case err := <-cpuTickr.Errs:
-			fmt.Fprintln(os.Stderr, err)
-		case data, ok := <-loadTickr.Data:
-			if !ok {
-				fmt.Println("load avg chan closed")
-				goto done
-			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.SysLoadAvg, data})
-		case err := <-loadTickr.Errs:
 			fmt.Fprintln(os.Stderr, err)
 		case data, ok := <-memTickr.Data:
 			if !ok {

@@ -15,5 +15,10 @@ var (
 	WriteWait = 5 * time.Second
 )
 
-// AckMsg is the default value for ack'ing received messages.
-var AckMsg = []byte("ok")
+// Text Message stuff.
+var (
+	// AckMsg is the default value for ack'ing received messages.
+	AckMsg = []byte("ok")
+	// LoadAvg is used for requesting a system's loadavg.
+	LoadAvg = []byte("loadavg")
+)

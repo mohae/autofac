@@ -79,6 +79,7 @@ sendInf:
 	conf.ClientAddRegion(bldr, rr)
 	conf.ClientAddZone(bldr, z)
 	conf.ClientAddDataCenter(bldr, d)
+	conf.ClientAddHealthbeatPeriod(bldr, srvr.ClientConf.HealthbeatPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	b := bldr.Bytes[bldr.Head():]
 	c.Conf = conf.GetRootAsClient(b, 0)
@@ -100,7 +101,7 @@ sendInf:
 	// start a message handler for the client
 	doneCh := make(chan struct{})
 	go c.Listen(doneCh)
-
+	go c.Healthbeat(doneCh)
 	// wait for the done signal
 	<-doneCh
 }

@@ -78,7 +78,7 @@ func (rcv *Client) DataCenter() []byte {
 	return nil
 }
 
-func (rcv *Client) HealthbeatInterval() int64 {
+func (rcv *Client) HealthbeatPeriod() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(14))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -102,6 +102,6 @@ func ClientAddHostname(builder *flatbuffers.Builder, Hostname flatbuffers.UOffse
 func ClientAddRegion(builder *flatbuffers.Builder, Region flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(Region), 0) }
 func ClientAddZone(builder *flatbuffers.Builder, Zone flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(Zone), 0) }
 func ClientAddDataCenter(builder *flatbuffers.Builder, DataCenter flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(4, flatbuffers.UOffsetT(DataCenter), 0) }
-func ClientAddHealthbeatInterval(builder *flatbuffers.Builder, HealthbeatInterval int64) { builder.PrependInt64Slot(5, HealthbeatInterval, 0) }
+func ClientAddHealthbeatPeriod(builder *flatbuffers.Builder, HealthbeatPeriod int64) { builder.PrependInt64Slot(5, HealthbeatPeriod, 0) }
 func ClientAddHealthbeatPushPeriod(builder *flatbuffers.Builder, HealthbeatPushPeriod int64) { builder.PrependInt64Slot(6, HealthbeatPushPeriod, 0) }
 func ClientEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT { return builder.EndObject() }

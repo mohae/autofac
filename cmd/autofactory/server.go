@@ -27,7 +27,7 @@ import (
 
 // Defaults for Client Conf: if file doesn't exist.
 var (
-	DefaultHealthbeatInterval   = util.Duration{5 * time.Second}
+	DefaultHealthbeatPeriod     = util.Duration{10 * time.Second}
 	DefaultHealthbeatPushPeriod = util.Duration{15 * time.Second}
 	DefaultSaveInterval         = util.Duration{30 * time.Second}
 )
@@ -128,7 +128,7 @@ func (s *server) newClient(id []byte) *Client {
 	v := bldr.CreateByteVector(id)
 	conf.ClientStart(bldr)
 	conf.ClientAddID(bldr, v)
-	conf.ClientAddHealthbeatInterval(bldr, s.HealthbeatInterval.Int64())
+	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	c := Client{
@@ -190,6 +190,32 @@ func (c *Client) Listen(doneCh chan struct{}) {
 		case websocket.CloseMessage:
 			fmt.Printf("closemessage: %x\n", p)
 			fmt.Println("client closed connection...waiting for reconnect")
+			return
+		}
+	}
+}
+
+// Healthbeat pulls info from the client on a set interval.  If the client
+// doesn't respond before the deadline, an error is generated.  If the client
+// doesn't respond to several consecutive requests, an error is generated and
+// the client connection is closed.
+func (c *Client) Healthbeat(done chan struct{}) {
+	// If this was set to 0; don't do a healthbeat.
+	if c.Conf.HealthbeatPeriod() == 0 {
+		return
+	}
+	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// request the Healthbeat; serveClient will handle the response.
+			err := c.WS.WriteMessage(websocket.TextMessage, autofact.LoadAvg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conf.IDBytes()), err)
+				return
+			} // add the data
+		case <-done:
 			return
 		}
 	}
@@ -309,7 +335,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 // All communication of conf data between Server and Client (Node) is done
 // with Flatbuffers serialization.
 type ClientConf struct {
-	HealthbeatInterval   util.Duration `json:"healthbeat_interval"`
+	HealthbeatPeriod     util.Duration `json:"healthbeat_period"`
 	HealthbeatPushPeriod util.Duration `json:"healthbeat_push_period"`
 	SaveInterval         util.Duration `json:"save_interval"`
 	WriteWait            util.Duration `json:"-"`
@@ -331,7 +357,7 @@ func (c *ClientConf) Load(file string) error {
 // Returns a ClientConf with application defaults.  This is called when
 // the Conf file cannot be found.
 func (c *ClientConf) UseAppDefaults() {
-	c.HealthbeatInterval = DefaultHealthbeatInterval
+	c.HealthbeatPeriod = DefaultHealthbeatPeriod
 	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
 	c.SaveInterval = DefaultSaveInterval
 	// WriteWait isn't set because it isn't being used yet.
@@ -353,7 +379,7 @@ func (c *ClientConf) SaveAsJSON(fname string) error {
 func (c *ClientConf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	conf.ClientStart(bldr)
-	conf.ClientAddHealthbeatInterval(bldr, c.HealthbeatInterval.Int64())
+	conf.ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod.Int64())
 	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
@@ -362,6 +388,6 @@ func (c *ClientConf) Serialize() []byte {
 // Deserialize deserializes serialized conf.Client into ClientConf.
 func (c *ClientConf) Deserialize(p []byte) {
 	cnf := conf.GetRootAsClient(p, 0)
-	c.HealthbeatInterval.Set(cnf.HealthbeatInterval())
+	c.HealthbeatPeriod.Set(cnf.HealthbeatPeriod())
 	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
 }

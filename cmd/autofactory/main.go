@@ -116,7 +116,6 @@ func realMain() int {
 		}
 		// If it didn't exist; use application defaults
 		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", clientConfFile)
-		srvr.ClientConf.UseAppDefaults()
 		// write this out to the app dir
 		err = srvr.ClientConf.SaveAsJSON(clientConfFile)
 		if err != nil {
