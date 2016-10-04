@@ -284,16 +284,6 @@ func (c *Client) Healthbeat() {
 	}
 	// error channel
 	errCh := make(chan error)
-	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
-	if err != nil {
-		errCh <- err
-		return
-	}
-	memTickr := memTicker.(*memf.Ticker)
-	// make sure the resources get cleaned up
-	defer memTickr.Close()
-	defer memTickr.Stop()
 	// ticker for network usage data
 	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	if err != nil {
@@ -310,14 +300,6 @@ func (c *Client) Healthbeat() {
 	defer t.Stop()
 	for {
 		select {
-		case data, ok := <-memTickr.Data:
-			if !ok {
-				fmt.Println("mem info chan closed")
-				goto done
-			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.MemInfo, data})
-		case err := <-memTickr.Errs:
-			fmt.Fprintln(os.Stderr, err)
 		case data, ok := <-netTickr.Data:
 			if !ok {
 				fmt.Println("network usage stats chan closed")
