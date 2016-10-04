@@ -9,11 +9,11 @@ const (
 	EOT          // end of transmission (for sequences that involve multiple messages, e.g. handshake)
 	Generic
 	Command
-	SysInf
+	SysInfo
 	ClientConf
 	CPUUtilization // CPU Utilization information
-	SysLoadAvg     // Sysinfo based load avg
-	SysMemInfo     // Sysinfo based mem info
+	LoadAvg        // Sysinfo based load avg
+	MemInfo        // Sysinfo based mem info
 	NetUsage       // network interface usage info
 )
 

@@ -262,7 +262,7 @@ func (c *Client) LoadAvg() error {
 	if err != nil {
 		return err
 	}
-	c.SendB <- message.Serialize(c.Conn.ID, message.SysLoadAvg, p)
+	c.SendB <- message.Serialize(c.Conn.ID, message.LoadAvg, p)
 	return nil
 }
 
@@ -333,7 +333,7 @@ func (c *Client) Healthbeat() {
 				fmt.Println("mem info chan closed")
 				goto done
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.SysMemInfo, data})
+			c.healthbeatQ.Enqueue(message.QMessage{message.MemInfo, data})
 		case err := <-memTickr.Errs:
 			fmt.Fprintln(os.Stderr, err)
 		case data, ok := <-netTickr.Data:

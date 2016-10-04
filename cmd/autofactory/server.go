@@ -262,7 +262,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			pts = append(pts, pt)
 		}
 		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
-	case message.SysLoadAvg:
+	case message.LoadAvg:
 		fmt.Printf("%s: loadavg\n", c.Conf.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
@@ -273,7 +273,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		}
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
 		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
-	case message.SysMemInfo:
+	case message.MemInfo:
 		fmt.Printf("%s: meminfo\n", c.Conf.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
