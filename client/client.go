@@ -370,11 +370,6 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 	}
 }
 
-// SendMessage sends a single serialized message of type Kind.
-func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.sendB <- message.Serialize(c.Conn.ID, kind, p)
-}
-
 // binary messages are expected to be flatbuffer encoding of message.Message.
 func (c *Client) processBinaryMessage(p []byte) error {
 	// unmarshal the message
