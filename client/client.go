@@ -273,7 +273,7 @@ func (c *Client) LoadAvg() error {
 	if err != nil {
 		return err
 	}
-	c.sendB <- message.Serialize(c.Conn.ID, message.LoadAvg, p)
+	c.sendB <- c.NewMessage(message.LoadAvg, p)
 	return nil
 }
 
