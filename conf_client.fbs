@@ -7,9 +7,10 @@ table Client {
 	Region:string;
 	Zone:string;
 	DataCenter:string;
-	MemInfoPeriod: long;
-	NetUsagePeriod: long;
-	CPUUtilizationPeriod: long;
+	HealthbeatPeriod:long;
+	MemInfoPeriod:long;
+	NetUsagePeriod:long;
+	CPUUtilizationPeriod:long;
 }
 
 root_type Client;

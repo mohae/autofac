@@ -62,7 +62,6 @@ func init() {
 	flag.StringVar(&influxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
 	flag.StringVar(&influxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
 	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
-
 }
 
 func main() {
@@ -105,13 +104,13 @@ func realMain() int {
 		// If it didn't exist; use application defaults
 		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", clientConfFile)
 		// write this out to the app dir
+		srvr.ClientConf.UseAppDefaults()
 		err = srvr.ClientConf.SaveAsJSON(clientConfFile)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			return 1
 		}
 	}
-
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open(srvr.BoltDBFile)
 	if err != nil {

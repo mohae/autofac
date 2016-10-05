@@ -144,6 +144,7 @@ func (s *server) newClient(id []byte) *Client {
 	v := bldr.CreateByteVector(id)
 	conf.ClientStart(bldr)
 	conf.ClientAddID(bldr, v)
+	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, s.MemInfoPeriod.Int64())
 	conf.ClientAddCPUUtilizationPeriod(bldr, s.CPUUtilizationPeriod.Int64())
 	conf.ClientAddNetUsagePeriod(bldr, s.NetUsagePeriod.Int64())
@@ -162,11 +163,9 @@ func (s *server) WriteBinaryMessage(conn *websocket.Conn, k message.Kind, p []by
 }
 
 // Client holds information about a client.
-// TODO should this hold ClientCOnf instead of Conf & HealthbeatPeriod?
 type Client struct {
-	HealthbeatPeriod time.Duration
-	Conf             *conf.Client
-	WS               *websocket.Conn
+	Conf *conf.Client
+	WS   *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
@@ -226,10 +225,10 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // the client connection is closed.
 func (c *Client) Healthbeat(done chan struct{}) {
 	// If this was set to 0; don't do a healthbeat.
-	if c.HealthbeatPeriod == 0 {
+	if c.Conf.HealthbeatPeriod() == 0 {
 		return
 	}
-	ticker := time.NewTicker(time.Duration(c.HealthbeatPeriod))
+	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	defer ticker.Stop()
 	for {
 		select {

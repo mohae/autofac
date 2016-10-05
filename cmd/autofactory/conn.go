@@ -46,7 +46,6 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	var c *Client
 	var ok bool
 	if len(p) == 0 {
-		fmt.Println("new clientid")
 		// get a new client and its ID
 		c, err = srvr.NewClient()
 		if err != nil {
@@ -64,7 +63,6 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-
 sendInf:
 	// update the node with the current inf
 	bldr := flatbuffers.NewBuilder(0)
@@ -79,6 +77,7 @@ sendInf:
 	conf.ClientAddRegion(bldr, rr)
 	conf.ClientAddZone(bldr, z)
 	conf.ClientAddDataCenter(bldr, d)
+	conf.ClientAddHealthbeatPeriod(bldr, c.Conf.HealthbeatPeriod())
 	conf.ClientAddMemInfoPeriod(bldr, c.Conf.MemInfoPeriod())
 	conf.ClientAddNetUsagePeriod(bldr, c.Conf.NetUsagePeriod())
 	conf.ClientAddCPUUtilizationPeriod(bldr, c.Conf.CPUUtilizationPeriod())
