@@ -23,6 +23,7 @@ import (
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/randchars"
+	"github.com/mohae/snoflinga"
 )
 
 // Defaults for Client Conf: if file doesn't exist.
@@ -60,6 +61,7 @@ type server struct {
 	BoltDBFile    string `json:"bolt_db_file"`
 	InfluxDBName  string `json:"influx_db_name"`
 	InfluxAddress string `json:"influx_address"`
+	idGen         snoflinga.Generator
 }
 
 func newServer() server {
@@ -147,10 +149,18 @@ func (s *server) newClient(id []byte) *Client {
 	return &c
 }
 
+// WriteBinaryMessage serializes a message and writes it to the socket as
+// a binary message.
+func (s *server) WriteBinaryMessage(conn *websocket.Conn, k message.Kind, p []byte) {
+	conn.WriteMessage(websocket.BinaryMessage, message.Serialize(s.idGen.Snowflake(), k, p))
+}
+
 // Client holds information about a client.
+// TODO should this hold ClientCOnf instead of Conf & HealthbeatPeriod?
 type Client struct {
-	Conf *conf.Client
-	WS   *websocket.Conn
+	HealthbeatPeriod time.Duration
+	Conf             *conf.Client
+	WS               *websocket.Conn
 	*InfluxClient
 	isConnected bool
 }
@@ -210,10 +220,10 @@ func (c *Client) Listen(doneCh chan struct{}) {
 // the client connection is closed.
 func (c *Client) Healthbeat(done chan struct{}) {
 	// If this was set to 0; don't do a healthbeat.
-	if c.Conf.HealthbeatPeriod() == 0 {
+	if c.HealthbeatPeriod == 0 {
 		return
 	}
-	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	ticker := time.NewTicker(time.Duration(c.HealthbeatPeriod))
 	defer ticker.Stop()
 	for {
 		select {
@@ -228,12 +238,6 @@ func (c *Client) Healthbeat(done chan struct{}) {
 			return
 		}
 	}
-}
-
-// WriteBinaryMessage serializes a message and writes it to the socket as
-// a binary message.
-func (c *Client) WriteBinaryMessage(k message.Kind, p []byte) {
-	c.WS.WriteMessage(websocket.BinaryMessage, message.Serialize(string(c.Conf.IDBytes()), k, p))
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.

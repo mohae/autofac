@@ -79,7 +79,9 @@ sendInf:
 	conf.ClientAddRegion(bldr, rr)
 	conf.ClientAddZone(bldr, z)
 	conf.ClientAddDataCenter(bldr, d)
-	conf.ClientAddHealthbeatPeriod(bldr, srvr.ClientConf.HealthbeatPeriod.Int64())
+	conf.ClientAddMemInfoPeriod(bldr, c.Conf.MemInfoPeriod())
+	conf.ClientAddNetUsagePeriod(bldr, c.Conf.NetUsagePeriod())
+	conf.ClientAddCPUUtilizationPeriod(bldr, c.Conf.CPUUtilizationPeriod())
 	bldr.Finish(conf.ClientEnd(bldr))
 	b := bldr.Bytes[bldr.Head():]
 	c.Conf = conf.GetRootAsClient(b, 0)
@@ -95,9 +97,9 @@ sendInf:
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf
-	c.WriteBinaryMessage(message.ClientConf, b)
+	srvr.WriteBinaryMessage(c.WS, message.ClientConf, b)
 	// send EOM
-	c.WriteBinaryMessage(message.EOT, nil)
+	srvr.WriteBinaryMessage(c.WS, message.EOT, nil)
 	// start a message handler for the client
 	doneCh := make(chan struct{})
 	go c.Listen(doneCh)
