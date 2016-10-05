@@ -1,15 +1,12 @@
 package main
 
 import (
-	"encoding/binary"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/mohae/autofact/conf"
 )
@@ -29,6 +26,8 @@ const (
 	oVar            = "o"
 	usernameVar     = "username"
 	uVar            = "u"
+	serverIDVar     = "serverid"
+	sVar            = "s"
 )
 
 var (
@@ -39,6 +38,7 @@ var (
 	autofactoryPath    = "$HOME/.autofactory"
 	autofactoryEnvName = "AUTOFACTORY_PATH"
 
+	serverID       string
 	clientConfFile string
 	influxUser     string
 	influxPassword string
@@ -50,6 +50,8 @@ func init() {
 	flag.StringVar(&connConf.ServerPort, oVar, "8675", "port to use for websockets (short)")
 	flag.StringVar(&clientConfFile, clientConfVar, "autofactory.json", "location of client configuration file")
 	flag.StringVar(&clientConfFile, cVar, "autofactory.json", "location of client configuration file (short)")
+	flag.StringVar(&serverID, serverIDVar, "autosrvr", "ID of the autofactory server")
+	flag.StringVar(&serverID, sVar, "autosrvr", "ID of the autofactory server")
 	flag.StringVar(&srvr.BoltDBFile, dbfileVar, "autofactory.bdb", "location of the autofactory database file")
 	flag.StringVar(&srvr.BoltDBFile, dVar, "autofactory.bdb", "location of the autfactory database file (short)")
 	flag.StringVar(&srvr.InfluxDBName, influxDBNameVar, "autofacts", "name of the InfluxDB to connect to")
@@ -60,6 +62,7 @@ func init() {
 	flag.StringVar(&influxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
 	flag.StringVar(&influxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
 	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
+
 }
 
 func main() {
@@ -87,23 +90,8 @@ func realMain() int {
 
 	flag.Parse()
 
-	// it is assumed that the server address is an IPv4
-	// TODO: revisit this assumption
-	b := make([]byte, 4)
-	parts := strings.Split(connConf.ServerAddress, ".")
-	for i, v := range parts {
-		// prevent out of range if the address ends up consisting of more than 4 parts
-		if 1 > 3 {
-			break
-		}
-		// any conversion error will result in a 0
-		tmp, _ := strconv.Atoi(v)
-		b[i] = byte(tmp)
-	}
-
-	v := binary.LittleEndian.Uint32(b)
-	fmt.Printf("%x\n", v)
-	srvr.ID = v
+	srvr.ID = []byte(serverID)
+	srvr.NewSnowflakeGenerator()
 	srvr.Path = autofactoryPath
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per

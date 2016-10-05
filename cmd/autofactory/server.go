@@ -42,7 +42,7 @@ type server struct {
 	// Autofact directory path
 	AutoPath string `json:"-"`
 	// ID of the server
-	ID uint32 `json:"-"`
+	ID []byte `json:"id"`
 	// URL of the server
 	url.URL `json:"-"`
 	// Default client config.
@@ -68,6 +68,12 @@ func newServer() server {
 	return server{
 		Inventory: newInventory(),
 	}
+}
+
+// NewSnowflakeGenerator gets a new snowflake generator for message id
+// generation.
+func (s *server) NewSnowflakeGenerator() {
+	s.idGen = snoflinga.New(s.ID)
 }
 
 // LoadInventory populates the server's inventory from the database.  This
