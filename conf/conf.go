@@ -95,6 +95,10 @@ func (c *Client) Serialize() []byte {
 	id := bldr.CreateByteVector(c.IDBytes())
 	ClientStart(bldr)
 	ClientAddID(bldr, id)
+	ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod())
+	ClientAddMemInfoPeriod(bldr, c.MemInfoPeriod())
+	ClientAddCPUUtilizationPeriod(bldr, c.CPUUtilizationPeriod())
+	ClientAddNetUsagePeriod(bldr, c.NetUsagePeriod())
 	bldr.Finish(ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
