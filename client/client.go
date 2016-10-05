@@ -16,6 +16,7 @@ import (
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
+	"github.com/mohae/snoflinga"
 )
 
 const IDLen = 8
@@ -29,9 +30,6 @@ type Client struct {
 	// Conf holds the client configuration (how the client behaves).
 	Conf *conf.Client
 
-	// queue of healthbeat messages to be sent.
-	healthbeatQ message.Queue
-
 	// this lock is for everything except messages or other things that are
 	// already threadsafe.
 	mu sync.Mutex
@@ -39,21 +37,22 @@ type Client struct {
 	WS *websocket.Conn
 	// Channel for outbound binary messages.  The message is assumed to be a
 	// websocket.Binary type
-	SendB       chan []byte
-	SendStr     chan string
+	sendB       chan []byte
+	sendStr     chan string
 	isConnected bool
 	ServerURL   url.URL
+	genLock     sync.Mutex
+	idGen       snoflinga.Generator
 }
 
 func New(c conf.Conn) *Client {
 	return &Client{
-		Conn:        c,
-		healthbeatQ: message.NewQueue(32), // this is just an arbitrary number. TODO revisit.
+		Conn: c,
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
-		SendB:   make(chan []byte, 10),
-		SendStr: make(chan string, 10),
+		sendB:   make(chan []byte, 8),
+		sendStr: make(chan string, 8),
 	}
 }
 
@@ -107,8 +106,8 @@ handshake:
 			case message.ClientConf:
 				c.Conf = conf.GetRootAsClient(msg.DataBytes(), 0)
 				// If there's a new ID, persist it/
-				if c.Conn.ID != string(c.Conf.IDBytes()) {
-					c.Conn.ID = string(c.Conf.IDBytes()) // save the ID; if it was an
+				if bytes.Compare(c.Conn.ID, c.Conf.IDBytes()) != 0 {
+					c.Conn.ID = c.Conf.IDBytes() // save the ID; if it was an
 					err := c.Save()
 					if err != nil {
 						fmt.Fprintf(os.Stderr, "error while saving Conn info: %s\n", err)
@@ -134,6 +133,10 @@ handshake:
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
+	// assume that the ID is now set: get a snowflake Generator
+	c.genLock.Lock()
+	c.idGen = snoflinga.New(c.Conn.ID)
+	c.genLock.Unlock()
 	return true
 }
 
@@ -143,11 +146,19 @@ func (c *Client) DialServer() error {
 	return err
 }
 
+// NewMessage creates a new message of type Kind using the received bytes.
+// The MessageID is a snowflake using the client's ID and the current time.
+func (c *Client) NewMessage(k message.Kind, p []byte) []byte {
+	c.genLock.Lock()
+	defer c.genLock.Unlock()
+	return message.Serialize(c.idGen.Snowflake(), k, p)
+}
+
 func (c *Client) MessageWriter(doneCh chan struct{}) {
 	defer close(doneCh)
 	for {
 		select {
-		case p, ok := <-c.SendB:
+		case p, ok := <-c.sendB:
 			// don't send if not connected
 			if !c.IsConnected() {
 				// TODO add write to db for persistence instead.
@@ -262,7 +273,7 @@ func (c *Client) LoadAvg() error {
 	if err != nil {
 		return err
 	}
-	c.SendB <- message.Serialize(c.Conn.ID, message.LoadAvg, p)
+	c.sendB <- message.Serialize(c.Conn.ID, message.LoadAvg, p)
 	return nil
 }
 
@@ -273,57 +284,13 @@ func (c *Client) IsConnected() bool {
 	return c.isConnected
 }
 
-// Healthbeat gathers basic system stats at a given interval.
-// TODO: handle doneCh stuff
-// TODO: HealthBeatPushPeriod vs sending message as they are
-// generated.
-func (c *Client) Healthbeat() {
-	// An interval of 0 means no healthbeat
-	if c.Conf.HealthbeatPeriod() == 0 {
-		return
-	}
-	// error channel
-	errCh := make(chan error)
-	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
-	if err != nil {
-		errCh <- err
-		return
-	}
-	netTickr := netTicker.(*netf.Ticker)
-	// make sure the resources get cleaned up
-	defer netTickr.Close()
-	defer netTickr.Stop()
-	//	go mem.DataTicker(time.Duration(c.Conf.HealthbeatPeriod()), memCh, doneCh, errCh)
-	//	go net.DataTicker(time.Duration(c.Conf.HealthbeatPeriod()), netdevCh, doneCh, errCh)
-	t := time.NewTicker(time.Duration(c.Conf.HealthbeatPushPeriod()))
-	defer t.Stop()
-	for {
-		select {
-		case data, ok := <-netTickr.Data:
-			if !ok {
-				fmt.Println("network usage stats chan closed")
-				goto done
-			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.NetUsage, data})
-		case err := <-netTickr.Errs:
-			fmt.Fprintln(os.Stderr, err)
-		case <-t.C:
-			c.SendHealthbeatMessages()
-		}
-	}
-done:
-	// Flush the queue.
-	c.SendHealthbeatMessages()
-}
-
 func (c *Client) CPUUtilization(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Conf.CPUUtilizationPeriod() == 0 {
 		return
 	}
 	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.CPUUtilizationPeriod()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "CPUUtilization: error creating ticker: %s", err)
 		return
@@ -339,7 +306,7 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 				fmt.Println("CPUUtilization ticker closed")
 				return
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.CPUUtilization, data})
+			c.sendB <- c.NewMessage(message.CPUUtilization, data)
 		case <-doneCh:
 			return
 		}
@@ -352,7 +319,7 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 		return
 	}
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	memTicker, err := memf.NewTicker(time.Duration(c.Conf.MemInfoPeriod()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating ticker for MemInfo: %s", err)
 		return
@@ -367,7 +334,7 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 				fmt.Println("mem info chan closed")
 				return
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.MemInfo, data})
+			c.sendB <- c.NewMessage(message.MemInfo, data)
 		case <-doneCh:
 			return
 		}
@@ -396,30 +363,16 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 				fmt.Println("NetUsage ticker closed")
 				return
 			}
-			c.healthbeatQ.Enqueue(message.QMessage{message.NetUsage, data})
+			c.sendB <- c.NewMessage(message.NetUsage, data)
 		case <-doneCh:
 			return
 		}
 	}
 }
 
-// SendHealthbeatMessages sends everything in the healthbeat queue.
-// TODO:  should this be more resilient?
-func (c *Client) SendHealthbeatMessages() error {
-	// for each data, send a message
-	for {
-		m, ok := c.healthbeatQ.Dequeue()
-		if !ok { // nothing left to send
-			break
-		}
-		c.SendB <- message.Serialize(c.Conn.ID, m.Kind, m.Data)
-	}
-	return nil
-}
-
 // SendMessage sends a single serialized message of type Kind.
 func (c *Client) SendMessage(kind message.Kind, p []byte) {
-	c.SendB <- message.Serialize(c.Conn.ID, kind, p)
+	c.sendB <- message.Serialize(c.Conn.ID, kind, p)
 }
 
 // binary messages are expected to be flatbuffer encoding of message.Message.

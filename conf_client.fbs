@@ -7,8 +7,6 @@ table Client {
 	Region:string;
 	Zone:string;
 	DataCenter:string;
-	HealthbeatPeriod:long;
-	HealthbeatPushPeriod:long;
 	MemInfoPeriod: long;
 	NetUsagePeriod: long;
 	CPUUtilizationPeriod: long;

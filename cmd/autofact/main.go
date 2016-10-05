@@ -99,7 +99,6 @@ func realMain() int {
 	}
 	// start the go routines first
 	go c.Listen(doneCh)
-	go c.Healthbeat()
 	go c.MemInfo(doneCh)
 	go c.CPUUtilization(doneCh)
 	go c.NetUsage(doneCh)

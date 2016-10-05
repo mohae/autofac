@@ -39,7 +39,7 @@ func (c *Conf) Flag(s string) *flag.Flag {
 // Conn holds the connection information for a node.  This is all that is
 // persisted on a client node.
 type Conn struct {
-	ID              string        `json:"id"`
+	ID              []byte        `json:"id"`
 	ServerAddress   string        `json:"server_address"`
 	ServerPort      string        `json:"server_port"`
 	ServerID        uint32        `json:"server_id"`
@@ -95,8 +95,6 @@ func (c *Client) Serialize() []byte {
 	id := bldr.CreateByteVector(c.IDBytes())
 	ClientStart(bldr)
 	ClientAddID(bldr, id)
-	ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod())
-	ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod())
 	bldr.Finish(ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }

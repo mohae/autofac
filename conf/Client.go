@@ -78,7 +78,7 @@ func (rcv *Client) DataCenter() []byte {
 	return nil
 }
 
-func (rcv *Client) HealthbeatPeriod() int64 {
+func (rcv *Client) MemInfoPeriod() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(14))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -86,7 +86,7 @@ func (rcv *Client) HealthbeatPeriod() int64 {
 	return 0
 }
 
-func (rcv *Client) HealthbeatPushPeriod() int64 {
+func (rcv *Client) NetUsagePeriod() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(16))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -94,7 +94,7 @@ func (rcv *Client) HealthbeatPushPeriod() int64 {
 	return 0
 }
 
-func (rcv *Client) MemInfoPeriod() int64 {
+func (rcv *Client) CPUUtilizationPeriod() int64 {
 	o := flatbuffers.UOffsetT(rcv._tab.Offset(18))
 	if o != 0 {
 		return rcv._tab.GetInt64(o + rcv._tab.Pos)
@@ -102,23 +102,7 @@ func (rcv *Client) MemInfoPeriod() int64 {
 	return 0
 }
 
-func (rcv *Client) NetUsagePeriod() int64 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(20))
-	if o != 0 {
-		return rcv._tab.GetInt64(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func (rcv *Client) CPUUtilizationPeriod() int64 {
-	o := flatbuffers.UOffsetT(rcv._tab.Offset(22))
-	if o != 0 {
-		return rcv._tab.GetInt64(o + rcv._tab.Pos)
-	}
-	return 0
-}
-
-func ClientStart(builder *flatbuffers.Builder) { builder.StartObject(10) }
+func ClientStart(builder *flatbuffers.Builder) { builder.StartObject(8) }
 func ClientAddID(builder *flatbuffers.Builder, ID flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(0, flatbuffers.UOffsetT(ID), 0) }
 func ClientStartIDVector(builder *flatbuffers.Builder, numElems int) flatbuffers.UOffsetT { return builder.StartVector(1, numElems, 1)
 }
@@ -126,9 +110,7 @@ func ClientAddHostname(builder *flatbuffers.Builder, Hostname flatbuffers.UOffse
 func ClientAddRegion(builder *flatbuffers.Builder, Region flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(2, flatbuffers.UOffsetT(Region), 0) }
 func ClientAddZone(builder *flatbuffers.Builder, Zone flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(3, flatbuffers.UOffsetT(Zone), 0) }
 func ClientAddDataCenter(builder *flatbuffers.Builder, DataCenter flatbuffers.UOffsetT) { builder.PrependUOffsetTSlot(4, flatbuffers.UOffsetT(DataCenter), 0) }
-func ClientAddHealthbeatPeriod(builder *flatbuffers.Builder, HealthbeatPeriod int64) { builder.PrependInt64Slot(5, HealthbeatPeriod, 0) }
-func ClientAddHealthbeatPushPeriod(builder *flatbuffers.Builder, HealthbeatPushPeriod int64) { builder.PrependInt64Slot(6, HealthbeatPushPeriod, 0) }
-func ClientAddMemInfoPeriod(builder *flatbuffers.Builder, MemInfoPeriod int64) { builder.PrependInt64Slot(7, MemInfoPeriod, 0) }
-func ClientAddNetUsagePeriod(builder *flatbuffers.Builder, NetUsagePeriod int64) { builder.PrependInt64Slot(8, NetUsagePeriod, 0) }
-func ClientAddCPUUtilizationPeriod(builder *flatbuffers.Builder, CPUUtilizationPeriod int64) { builder.PrependInt64Slot(9, CPUUtilizationPeriod, 0) }
+func ClientAddMemInfoPeriod(builder *flatbuffers.Builder, MemInfoPeriod int64) { builder.PrependInt64Slot(5, MemInfoPeriod, 0) }
+func ClientAddNetUsagePeriod(builder *flatbuffers.Builder, NetUsagePeriod int64) { builder.PrependInt64Slot(6, NetUsagePeriod, 0) }
+func ClientAddCPUUtilizationPeriod(builder *flatbuffers.Builder, CPUUtilizationPeriod int64) { builder.PrependInt64Slot(7, CPUUtilizationPeriod, 0) }
 func ClientEnd(builder *flatbuffers.Builder) flatbuffers.UOffsetT { return builder.EndObject() }

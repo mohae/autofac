@@ -27,12 +27,12 @@ import (
 
 // Defaults for Client Conf: if file doesn't exist.
 var (
-	DefaultHealthbeatPeriod     = util.Duration{10 * time.Second}
-	DefaultHealthbeatPushPeriod = util.Duration{15 * time.Second}
+	// Pull
+	DefaultHealthbeatPeriod = util.Duration{10 * time.Second}
+	// Client Side
 	DefaultMemInfoPeriod        = util.Duration{time.Minute}
 	DefaultCPUUtilizationPeriod = util.Duration{time.Minute}
 	DefaultNetUsagePeriod       = util.Duration{5 * time.Minute}
-	DefaultSaveInterval         = util.Duration{30 * time.Second}
 )
 
 // server is the container for a server's information and everything that it
@@ -70,6 +70,11 @@ func newServer() server {
 
 // LoadInventory populates the server's inventory from the database.  This
 // is a cached list of clients.
+// TODO: should the client configs be cached or should they be read from
+// a config file?  Any client that has a healthbeat or metric collection
+// configuration different than the standard would probably need to be in a
+// config file, unless some other mechanism was provided (get from etcd or
+// something?)
 func (s *server) LoadInventory() (int, error) {
 	var n int
 	clients, err := s.DB.Clients()
@@ -111,7 +116,7 @@ func (s *server) NewClient() (c *Client, err error) {
 	s.Inventory.mu.Lock()
 	defer s.Inventory.mu.Unlock()
 	for {
-		// TOD replace with a rand bytes or striing
+		// TODO replace with a rand bytes or striing
 		id := randchars.AlphaNum(client.IDLen)
 		fmt.Println(string(id))
 		if !s.Inventory.clientExists(id) {
@@ -131,11 +136,9 @@ func (s *server) newClient(id []byte) *Client {
 	v := bldr.CreateByteVector(id)
 	conf.ClientStart(bldr)
 	conf.ClientAddID(bldr, v)
-	conf.ClientAddHealthbeatPeriod(bldr, s.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, s.MemInfoPeriod.Int64())
 	conf.ClientAddCPUUtilizationPeriod(bldr, s.CPUUtilizationPeriod.Int64())
 	conf.ClientAddNetUsagePeriod(bldr, s.NetUsagePeriod.Int64())
-	conf.ClientAddHealthbeatPushPeriod(bldr, s.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	c := Client{
 		Conf: conf.GetRootAsClient(bldr.Bytes[bldr.Head():], 0),
@@ -342,12 +345,9 @@ func (c *Client) processBinaryMessage(p []byte) error {
 // with Flatbuffers serialization.
 type ClientConf struct {
 	HealthbeatPeriod     util.Duration `json:"healthbeat_period"`
-	HealthbeatPushPeriod util.Duration `json:"healthbeat_push_period"`
 	CPUUtilizationPeriod util.Duration `json:"cpuutilization_period"`
 	MemInfoPeriod        util.Duration `json:"meminfo_period"`
 	NetUsagePeriod       util.Duration `json:"netusage_period"`
-	SaveInterval         util.Duration `json:"save_interval"`
-	WriteWait            util.Duration `json:"-"`
 }
 
 // Load loads the client configuration from the specified file.
@@ -370,9 +370,6 @@ func (c *ClientConf) UseAppDefaults() {
 	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
 	c.MemInfoPeriod = DefaultMemInfoPeriod
 	c.NetUsagePeriod = DefaultNetUsagePeriod
-	c.HealthbeatPushPeriod = DefaultHealthbeatPushPeriod
-	c.SaveInterval = DefaultSaveInterval
-	// WriteWait isn't set because it isn't being used yet.
 }
 
 func (c *ClientConf) SaveAsJSON(fname string) error {
@@ -391,11 +388,9 @@ func (c *ClientConf) SaveAsJSON(fname string) error {
 func (c *ClientConf) Serialize() []byte {
 	bldr := flatbuffers.NewBuilder(0)
 	conf.ClientStart(bldr)
-	conf.ClientAddHealthbeatPeriod(bldr, c.HealthbeatPeriod.Int64())
 	conf.ClientAddMemInfoPeriod(bldr, c.MemInfoPeriod.Int64())
 	conf.ClientAddCPUUtilizationPeriod(bldr, c.CPUUtilizationPeriod.Int64())
 	conf.ClientAddNetUsagePeriod(bldr, c.NetUsagePeriod.Int64())
-	conf.ClientAddHealthbeatPushPeriod(bldr, c.HealthbeatPushPeriod.Int64())
 	bldr.Finish(conf.ClientEnd(bldr))
 	return bldr.Bytes[bldr.Head():]
 }
@@ -403,9 +398,7 @@ func (c *ClientConf) Serialize() []byte {
 // Deserialize deserializes serialized conf.Client into ClientConf.
 func (c *ClientConf) Deserialize(p []byte) {
 	cnf := conf.GetRootAsClient(p, 0)
-	c.HealthbeatPeriod.Set(cnf.HealthbeatPeriod())
 	c.MemInfoPeriod.Set(cnf.MemInfoPeriod())
 	c.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
 	c.NetUsagePeriod.Set(cnf.NetUsagePeriod())
-	c.HealthbeatPushPeriod.Set(cnf.HealthbeatPushPeriod())
 }
