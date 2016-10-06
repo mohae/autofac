@@ -10,6 +10,7 @@ import (
 
 	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/conf"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -28,6 +29,21 @@ var (
 	connConf conf.Conn
 )
 
+// TODO determine loglevel mapping to actual usage:
+// Proposed:
+//  DebugLevel == not used
+//	InfoLevel == Gathered data
+//  WarnLevel == Connection info an non-error messages: status type
+//  ErrorLevel == Errors
+//  PanicLevel == Panic: shouldn't be used
+//  FatalLevel == Unrecoverable error that results in app shutdown
+// TODO: implement data logging
+var (
+	log      zap.Logger
+	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
+	logfile  string
+)
+
 // TODO: reconcile these flags with config file usage.  Probably add contour
 // to handle this after the next refactor of contour.
 // TODO: make connectInterval/period handling consistent, e.g. should they be
@@ -37,6 +53,8 @@ func init() {
 	flag.StringVar(&connConf.ServerAddress, aVar, "127.0.0.1", "the server address (short)")
 	flag.StringVar(&connConf.ServerPort, portVar, "8675", "the connection port")
 	flag.StringVar(&connConf.ServerPort, pVar, "8675", "the connection port (short)")
+	flag.StringVar(&logfile, "logfile", "autofact.log", "application log file; if empty stderr will be used")
+	flag.StringVar(&logfile, "l", "autofact.log", "application log file; if empty stderr will be used")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 }
@@ -56,23 +74,32 @@ func realMain() int {
 	// make sure the autofact path exists (create if it doesn't)
 	err := os.MkdirAll(autofactPath, 0760)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to create AUTOFACT_PATH dir: %s\n", err)
-		return 1
+		log.Fatal(fmt.Sprintf("error creating AUTOFACT_PATH: %s", err))
 	}
 
 	// finalize the paths
 	connFile = filepath.Join(autofactPath, connFile)
 
 	// process the settings
+	var connErrMsg string
 	err = connConf.Load(connFile)
 	if err != nil {
-		// Log the error and continue.  An error is not a show stopper as the file
-		// may not exist if this is the first time autofact has run on this node.
-		fmt.Fprintf(os.Stderr, "using default settings: connection conf: %s\n", err)
+		// capture the error for logging once it is setup and continue.  An error
+		// is not a show stopper as the file may not exist if this is the first
+		// time autofact has run on this node.
+		connErrMsg = fmt.Sprintf("using default settings: connection conf: %s\n", err)
 	}
 
 	// Parse the flags.
 	flag.Parse()
+
+	// now that everything is parsed; set up logging
+	SetLogging()
+
+	// if there was an error reading the connection configuration log it
+	if connErrMsg != "" {
+		log.Warn(connErrMsg)
+	}
 
 	// TODO add env var support
 
@@ -94,8 +121,7 @@ func realMain() int {
 		// retry on fail until retry attempts have been exceeded
 	}
 	if !c.IsConnected() {
-		fmt.Fprintf(os.Stderr, "unable to connect to %s\n", c.ServerURL.String())
-		return 1
+		log.Fatal(fmt.Sprintf("unable to connect to %s\n", c.ServerURL.String()))
 	}
 	// start the go routines first
 	go c.Listen(doneCh)
@@ -107,8 +133,29 @@ func realMain() int {
 	// if connected, save the conf: this will also save the ClientID
 	err = c.Conn.Save()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "save of conn conf failed: %s\n", err)
+		log.Error(fmt.Sprintf("save of conn conf failed: %s\n", err))
 	}
 	<-doneCh
 	return 0
+}
+
+func SetLogging() {
+	// if logfile is empty, use Stderr
+	var f *os.File
+	var err error
+	if logfile == "" {
+		f = os.Stderr
+	} else {
+		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+		if err != nil {
+			panic(err)
+		}
+	}
+	log = zap.New(
+		zap.NewJSONEncoder(
+			zap.RFC3339Formatter("timestamp"),
+		),
+		zap.Output(f),
+	)
+	log.SetLevel(*loglevel)
 }
