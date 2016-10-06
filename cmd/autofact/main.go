@@ -26,7 +26,8 @@ var (
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
 	// default
-	connConf conf.Conn
+	connConf   conf.Conn
+	serverless bool // if the client is being run without a server
 )
 
 // TODO determine loglevel mapping to actual usage:
@@ -55,6 +56,7 @@ func init() {
 	flag.StringVar(&connConf.ServerPort, pVar, "8675", "the connection port (short)")
 	flag.StringVar(&logfile, "logfile", "autofact.log", "application log file; if empty stderr will be used")
 	flag.StringVar(&logfile, "l", "autofact.log", "application log file; if empty stderr will be used")
+	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 }
@@ -96,33 +98,38 @@ func realMain() int {
 	// now that everything is parsed; set up logging
 	SetLogging()
 
-	// if there was an error reading the connection configuration log it
-	if connErrMsg != "" {
+	// if there was an error reading the connection configuration and this isn't
+	// being run serverless, log it
+	if connErrMsg != "" && !serverless {
 		log.Warn(connErrMsg)
 	}
 
 	// TODO add env var support
 
 	// get a client
-	c := client.New(connConf)
+	c := client.New(connConf, log)
 	c.AutoPath = autofactPath
-
-	// connect to the Server
-	c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
 
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
-	// must have a connection before doing anything
-	for i := 0; i < 3; i++ {
-		connected := c.Connect()
-		if connected {
-			break
+
+	if !serverless {
+		// connect to the Server
+		c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
+
+		// must have a connection before doing anything
+		for i := 0; i < 3; i++ {
+			connected := c.Connect()
+			if connected {
+				break
+			}
+			// retry on fail until retry attempts have been exceeded
 		}
-		// retry on fail until retry attempts have been exceeded
+		if !c.IsConnected() {
+			log.Fatal(fmt.Sprintf("unable to connect to %s\n", c.ServerURL.String()))
+		}
 	}
-	if !c.IsConnected() {
-		log.Fatal(fmt.Sprintf("unable to connect to %s\n", c.ServerURL.String()))
-	}
+
 	// start the go routines first
 	go c.Listen(doneCh)
 	go c.MemInfo(doneCh)
@@ -130,10 +137,13 @@ func realMain() int {
 	go c.NetUsage(doneCh)
 	// start the connection handler
 	go c.MessageWriter(doneCh)
-	// if connected, save the conf: this will also save the ClientID
-	err = c.Conn.Save()
-	if err != nil {
-		log.Error(fmt.Sprintf("save of conn conf failed: %s\n", err))
+
+	if !serverless {
+		// if connected, save the conf: this will also save the ClientID
+		err = c.Conn.Save()
+		if err != nil {
+			log.Error(fmt.Sprintf("save of conn conf failed: %s\n", err))
+		}
 	}
 	<-doneCh
 	return 0
