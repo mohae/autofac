@@ -1,4 +1,4 @@
-package client
+package main
 
 import (
 	"bytes"
@@ -17,8 +17,9 @@ import (
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
-	"github.com/uber-go/zap"
 )
+
+const IDLen = 8
 
 // Client is anything that talks to the server.
 type Client struct {
@@ -41,13 +42,11 @@ type Client struct {
 	ServerURL   url.URL
 	genLock     sync.Mutex
 	idGen       snoflinga.Generator
-	log         zap.Logger
 }
 
-func New(c conf.Conn, log zap.Logger) *Client {
+func NewClient(c conf.Conn) *Client {
 	return &Client{
 		Conn: c,
-		log:  log,
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.

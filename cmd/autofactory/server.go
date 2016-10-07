@@ -13,7 +13,6 @@ import (
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
-	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
@@ -125,7 +124,7 @@ func (s *server) NewClient() (c *Client, err error) {
 	defer s.Inventory.mu.Unlock()
 	for {
 		// TODO replace with a rand bytes or striing
-		id := randchars.AlphaNum(client.IDLen)
+		id := randchars.AlphaNum(util.IDLen)
 		fmt.Println(string(id))
 		if !s.Inventory.clientExists(id) {
 			c = s.newClient(id)

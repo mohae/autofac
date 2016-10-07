@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/mohae/autofact/client"
 	"github.com/mohae/autofact/conf"
 	"github.com/uber-go/zap"
 )
@@ -107,7 +106,7 @@ func realMain() int {
 	// TODO add env var support
 
 	// get a client
-	c := client.New(connConf, log)
+	c := NewClient(connConf)
 	c.AutoPath = autofactPath
 
 	// doneCh is used to signal that the connection has been closed

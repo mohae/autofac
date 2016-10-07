@@ -10,8 +10,11 @@ import (
 )
 
 // max value for an int64
-const maxInt64 = 1<<63 - 1
-const alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+const (
+	maxInt64 = 1<<63 - 1
+	alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+	IDLen    = 8
+)
 
 // util has its own prng
 var prng pcg.Rand
