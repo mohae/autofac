@@ -169,7 +169,7 @@ func SetLogging() {
 	}
 	log = zap.New(
 		zap.NewJSONEncoder(
-			zap.RFC3339Formatter("timestamp"),
+			zap.RFC3339Formatter("ts"),
 		),
 		zap.Output(f),
 	)
