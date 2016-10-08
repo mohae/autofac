@@ -1,0 +1,6 @@
+{
+	"healthbeat_period": "10s",
+	"cpuutilization_period": "1m0s",
+	"meminfo_period": "1m0s",
+	"netusage_period": "5m0s",
+}

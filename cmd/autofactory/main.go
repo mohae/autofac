@@ -54,8 +54,8 @@ var (
 func init() {
 	flag.StringVar(&connConf.ServerPort, portVar, "8675", "port to use for websockets")
 	flag.StringVar(&connConf.ServerPort, oVar, "8675", "port to use for websockets (short)")
-	flag.StringVar(&clientConfFile, clientConfVar, "autofactory.json", "location of client configuration file")
-	flag.StringVar(&clientConfFile, cVar, "autofactory.json", "location of client configuration file (short)")
+	flag.StringVar(&clientConfFile, clientConfVar, "autoclient.json", "location of client configuration file")
+	flag.StringVar(&clientConfFile, cVar, "autoclient.json", "location of client configuration file (short)")
 	flag.StringVar(&serverID, serverIDVar, "autosrvr", "ID of the autofactory server")
 	flag.StringVar(&serverID, sVar, "autosrvr", "ID of the autofactory server")
 	flag.StringVar(&srvr.BoltDBFile, dbfileVar, "autofactory.bdb", "location of the autofactory database file")
