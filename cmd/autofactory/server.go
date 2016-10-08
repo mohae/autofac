@@ -190,7 +190,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			log.Debug(
 				string(p),
 				zap.String("op", "receive message"),
-				zap.String("type", "textmessage"),
+				zap.String("type", util.WSString(typ)),
 			)
 			if bytes.Equal(p, autofact.AckMsg) {
 				// if this is an acknowledgement message, do nothing
@@ -219,6 +219,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			log.Info(
 				string(p),
 				zap.String("op", "client closed connection"),
+				zap.String("type", util.WSString(typ)),
 				zap.String("id", string(c.Conf.IDBytes())),
 			)
 			return

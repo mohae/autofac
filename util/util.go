@@ -112,3 +112,21 @@ func (d *Duration) Int64() int64 {
 func (d *Duration) Set(v int64) {
 	d.Duration = time.Duration(v)
 }
+
+// WSString returns a string for a given websocket message type
+func WSString(t int) string {
+	switch t {
+	case 1:
+		return "TextMessage"
+	case 2:
+		return "BinaryMessage"
+	case 8:
+		return "CloseMessage"
+	case 9:
+		return "PingMessage"
+	case 10:
+		return "PongMessage"
+	default:
+		return "UnknownMessage"
+	}
+}

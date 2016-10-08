@@ -8,6 +8,7 @@ import (
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
+	"github.com/mohae/autofact/util"
 	"github.com/uber-go/zap"
 )
 
@@ -48,7 +49,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		conn.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request"))
 		log.Error(
 			"invalid connection initation type",
-			zap.String("type", typ.String()),
+			zap.String("type", util.WSString(typ)),
 		)
 		return
 	}
