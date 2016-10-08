@@ -6,9 +6,20 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/mohae/autofact/util"
+)
+
+// Defaults for Client Conf: if file doesn't exist.
+var (
+	// Pull
+	DefaultHealthbeatPeriod = util.Duration{10 * time.Second}
+	// Client Side
+	DefaultMemInfoPeriod        = util.Duration{time.Minute}
+	DefaultCPUUtilizationPeriod = util.Duration{time.Minute}
+	DefaultNetUsagePeriod       = util.Duration{5 * time.Minute}
 )
 
 // Conf is used to hold flag arguments passed on start

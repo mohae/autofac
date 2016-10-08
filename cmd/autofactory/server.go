@@ -25,16 +25,6 @@ import (
 	"github.com/mohae/snoflinga"
 )
 
-// Defaults for Client Conf: if file doesn't exist.
-var (
-	// Pull
-	DefaultHealthbeatPeriod = util.Duration{10 * time.Second}
-	// Client Side
-	DefaultMemInfoPeriod        = util.Duration{time.Minute}
-	DefaultCPUUtilizationPeriod = util.Duration{time.Minute}
-	DefaultNetUsagePeriod       = util.Duration{5 * time.Minute}
-)
-
 // server is the container for a server's information and everything that it
 // is tracking/serving.
 type server struct {
@@ -374,10 +364,10 @@ func (c *ClientConf) Load(file string) error {
 // Returns a ClientConf with application defaults.  This is called when
 // the Conf file cannot be found.
 func (c *ClientConf) UseAppDefaults() {
-	c.HealthbeatPeriod = DefaultHealthbeatPeriod
-	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
-	c.MemInfoPeriod = DefaultMemInfoPeriod
-	c.NetUsagePeriod = DefaultNetUsagePeriod
+	c.HealthbeatPeriod = conf.DefaultHealthbeatPeriod
+	c.CPUUtilizationPeriod = conf.DefaultCPUUtilizationPeriod
+	c.MemInfoPeriod = conf.DefaultMemInfoPeriod
+	c.NetUsagePeriod = conf.DefaultNetUsagePeriod
 }
 
 func (c *ClientConf) SaveAsJSON(fname string) error {
