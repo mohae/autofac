@@ -75,20 +75,23 @@ func realMain() int {
 	// make sure the autofact path exists (create if it doesn't)
 	err := os.MkdirAll(autofactPath, 0760)
 	if err != nil {
-		log.Fatal(fmt.Sprintf("error creating AUTOFACT_PATH: %s", err))
+		log.Fatal(
+			err.Error(),
+			zap.String("op", "create AUTOFACT_PATH"),
+		)
 	}
 
 	// finalize the paths
 	connFile = filepath.Join(autofactPath, connFile)
 
 	// process the settings
-	var connErrMsg string
+	var connMsg string
 	err = connConf.Load(connFile)
 	if err != nil {
 		// capture the error for logging once it is setup and continue.  An error
 		// is not a show stopper as the file may not exist if this is the first
 		// time autofact has run on this node.
-		connErrMsg = fmt.Sprintf("using default settings: connection conf: %s\n", err)
+		connMsg = fmt.Sprintf("using default settings")
 	}
 
 	// Parse the flags.
@@ -99,8 +102,11 @@ func realMain() int {
 
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
-	if connErrMsg != "" && !serverless {
-		log.Warn(connErrMsg)
+	if connMsg != "" && !serverless {
+		log.Warn(
+			err.Error(),
+			zap.String("conf", connMsg),
+		)
 	}
 
 	// TODO add env var support
@@ -125,7 +131,10 @@ func realMain() int {
 			// retry on fail until retry attempts have been exceeded
 		}
 		if !c.IsConnected() {
-			log.Fatal(fmt.Sprintf("unable to connect to %s\n", c.ServerURL.String()))
+			log.Fatal(
+				"unable to connect",
+				zap.String("server", c.ServerURL.String()),
+			)
 		}
 	}
 
@@ -141,7 +150,11 @@ func realMain() int {
 		// if connected, save the conf: this will also save the ClientID
 		err = c.Conn.Save()
 		if err != nil {
-			log.Error(fmt.Sprintf("save of conn conf failed: %s\n", err))
+			log.Error(
+				err.Error(),
+				zap.String("op", "save conn"),
+				zap.String("file", c.Filename),
+			)
 		}
 	}
 	<-doneCh
