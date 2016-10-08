@@ -2,9 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	client "github.com/influxdata/influxdb/client/v2"
+	"github.com/uber-go/zap"
 )
 
 // series holds a series of data points for Influx.
@@ -50,12 +50,19 @@ func (c *InfluxClient) Write() {
 		select {
 		case series, ok := <-c.seriesCh:
 			if !ok {
-				fmt.Fprintf(os.Stderr, "InfluxDB: series chan for %s database closed: exiting\n", c.DBName)
-				return
+				log.Fatal(
+					"series data channel is closed",
+					zap.String("db", "influxdb"),
+					zap.String("dbname", c.DBName),
+				)
 			}
 			// TODO: work out error handling
 			if series.err != nil {
-				fmt.Fprintf(os.Stderr, "InfluxDB: series had an error: %s", series.err)
+				log.Error(
+					series.err.Error(),
+					zap.String("op", "process series data"),
+					zap.String("db", "influxdb"),
+				)
 				continue
 			}
 			// create the batchpoint from the data
@@ -64,7 +71,11 @@ func (c *InfluxClient) Write() {
 				Precision: c.Precision,
 			})
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "InfluxDB: unable to create batch points for series: %s", err)
+				log.Error(
+					err.Error(),
+					zap.String("op", "create batch points"),
+					zap.String("db", "influxdb"),
+				)
 				continue
 			}
 			for _, v := range series.Data {
@@ -72,7 +83,11 @@ func (c *InfluxClient) Write() {
 			}
 			err = c.Conn.Write(bp)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "InfluxDB: write of series data failed: %s", err)
+				log.Error(
+					err.Error(),
+					zap.String("op", "write series data"),
+					zap.String("db", "influxdb"),
+				)
 				continue
 			}
 		case _, ok := <-c.doneCh:

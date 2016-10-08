@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/mohae/autofact/conf"
+	"github.com/uber-go/zap"
 )
 
 const (
@@ -33,6 +34,11 @@ const (
 var (
 	srvr     = newServer()
 	connConf conf.Conn
+
+	// Logging
+	log      zap.Logger
+	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
+	logfile  string
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
@@ -80,7 +86,8 @@ func realMain() int {
 	// make sure the autopath exists (create if it doesn't)
 	err := os.MkdirAll(autofactoryPath, 0760)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to create AUTOFACTORY_PATH dir: %s\n", err)
+		fmt.Fprintf(os.Stderr, "unable to create AUTOFACTORY_PATH: %s\n", err)
+		fmt.Fprintln(os.Stderr, "startup error: exiting")
 		return 1
 	}
 
@@ -88,6 +95,9 @@ func realMain() int {
 	srvr.BoltDBFile = filepath.Join(autofactoryPath, srvr.BoltDBFile)
 
 	flag.Parse()
+
+	// now that everything is parsed; set up logging
+	SetLogging()
 
 	srvr.ID = []byte(serverID)
 	srvr.NewSnowflakeGenerator()
@@ -98,30 +108,51 @@ func realMain() int {
 	err = srvr.ClientConf.Load(clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
-			fmt.Fprintf(os.Stderr, "error loading the client configuration file: %s\n", err)
+			log.Error(
+				err.Error(),
+				zap.String("op", "read conf"),
+				zap.String("file", clientConfFile),
+			)
 			return 1
 		}
 		// If it didn't exist; use application defaults
-		fmt.Fprintf(os.Stderr, "%s not found; using Autofactory defaults for client configuration\n", clientConfFile)
+		log.Warn(
+			"conf file not found, using default values for client configuration",
+			zap.String("op", "read conf"),
+			zap.String("file", clientConfFile),
+		)
 		// write this out to the app dir
 		srvr.ClientConf.UseAppDefaults()
 		err = srvr.ClientConf.SaveAsJSON(clientConfFile)
-		if err != nil {
-			fmt.Fprintln(os.Stderr, err)
-			return 1
+		if err != nil { // a save error isn't fatal
+			log.Error(
+				err.Error(),
+				zap.String("op", "save conf"),
+				zap.String("file", clientConfFile),
+			)
 		}
 	}
 	// bdb is used as the extension for bolt db.
 	err = srvr.DB.Open(srvr.BoltDBFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error opening database: %s\n", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "open boltdb"),
+			zap.String("file", srvr.BoltDBFile),
+		)
 		return 1
 	}
 
 	// connect to Influx
+	// TODO make this optional; if Influx isn't going to be used, leverage
+	// zap to write the data to a structured log.
 	err = srvr.connectToInfluxDB(influxUser, influxPassword)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error connecting to %s: %s\n", srvr.InfluxDBName, err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "connect to influxdb"),
+			zap.String("db", srvr.InfluxDBName),
+		)
 		return 1
 	}
 	go handleSignals(&srvr)
@@ -130,10 +161,13 @@ func realMain() int {
 	go srvr.InfluxClient.Write()
 	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
-	fmt.Println(srvr.URL.String())
 	err = http.ListenAndServe(fmt.Sprintf(":%s", connConf.ServerPort), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "unable to start server: %s\n", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "start server"),
+			zap.String("port", connConf.ServerPort),
+		)
 		return 1
 	}
 	return 0
@@ -143,7 +177,31 @@ func handleSignals(srvr *server) {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	v := <-c
-	fmt.Printf("\nshutting down autofactory: received %v\n", v)
+	log.Info(
+		"os signal received: shutting down autofactory",
+		zap.Object("signal", v),
+	)
 	srvr.DB.DB.Close()
 	os.Exit(1)
+}
+
+func SetLogging() {
+	// if logfile is empty, use Stderr
+	var f *os.File
+	var err error
+	if logfile == "" {
+		f = os.Stderr
+	} else {
+		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+		if err != nil {
+			panic(err)
+		}
+	}
+	log = zap.New(
+		zap.NewJSONEncoder(
+			zap.RFC3339Formatter("ts"),
+		),
+		zap.Output(f),
+	)
+	log.SetLevel(*loglevel)
 }

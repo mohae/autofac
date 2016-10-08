@@ -23,6 +23,7 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/randchars"
 	"github.com/mohae/snoflinga"
+	"github.com/uber-go/zap"
 )
 
 // server is the container for a server's information and everything that it
@@ -167,16 +168,30 @@ func (c *Client) Listen(doneCh chan struct{}) {
 	for {
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
 			if _, ok := err.(*websocket.CloseError); !ok {
+				log.Error(
+					err.Error(),
+					zap.String("op", "read message"),
+					zap.String("id", string(c.Conf.IDBytes())),
+				)
 				return
 			}
+			log.Info(
+				err.Error(),
+				zap.String("op", "read message"),
+				zap.String("id", string(c.Conf.IDBytes())),
+			)
+
 			fmt.Println("client closed connection...waiting for reconnect")
 			return
 		}
 		switch typ {
 		case websocket.TextMessage:
-			fmt.Printf("textmessage: %s\n", p)
+			log.Debug(
+				string(p),
+				zap.String("op", "receive message"),
+				zap.String("type", "textmessage"),
+			)
 			if bytes.Equal(p, autofact.AckMsg) {
 				// if this is an acknowledgement message, do nothing
 				continue
@@ -201,8 +216,11 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			}
 			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
-			fmt.Printf("closemessage: %x\n", p)
-			fmt.Println("client closed connection...waiting for reconnect")
+			log.Info(
+				string(p),
+				zap.String("op", "client closed connection"),
+				zap.String("id", string(c.Conf.IDBytes())),
+			)
 			return
 		}
 	}

@@ -1,15 +1,14 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/google/flatbuffers/go"
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
+	"github.com/uber-go/zap"
 )
 
 var upgrader = websocket.Upgrader{
@@ -27,20 +26,30 @@ var upgrader = websocket.Upgrader{
 func serveClient(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "upgrade error: %s\n", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "upgrade client connection"),
+		)
+		return
 	}
 	defer conn.Close()
 	// first message is the clientID, if "" then get a new one
 	typ, p, err := conn.ReadMessage()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "read new connection message"),
+		)
 		return
 	}
 	// if messageType isn't TextMessage, reject.  It should either be empty or
 	// have a client ID.
 	if typ != websocket.TextMessage {
 		conn.WriteMessage(websocket.CloseMessage, []byte("invalid socket initiation request"))
-		fmt.Fprintf(os.Stderr, "invalid initiation typ: %d\n", typ)
+		log.Error(
+			"invalid connection initation type",
+			zap.String("type", typ.String()),
+		)
 		return
 	}
 	var c *Client
@@ -49,7 +58,10 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		// get a new client and its ID
 		c, err = srvr.NewClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to create new client: %s\n", err)
+			log.Error(
+				err.Error(),
+				zap.String("op", "create client"),
+			)
 			return
 		}
 		goto sendInf
@@ -59,7 +71,10 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		c, err = srvr.NewClient()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "unable to create new client: %s\n", err)
+			log.Error(
+				err.Error(),
+				zap.String("op", "create client"),
+			)
 			return
 		}
 	}
@@ -85,11 +100,18 @@ sendInf:
 	b := bldr.Bytes[bldr.Head():]
 	c.Conf = conf.GetRootAsClient(b, 0)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error writing client ID for %s: %s\n", string(c.Conf.IDBytes()), err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "send message"),
+			zap.String("message type", "client configuration"),
+		)
 		return
 	}
 
-	fmt.Printf("%s connected\n", string(c.Conf.IDBytes()))
+	log.Info(
+		"client connected",
+		zap.String("id", string(c.Conf.IDBytes())),
+	)
 
 	// Add the client inf to the inventory
 	srvr.Inventory.AddClient(c.Conf)
