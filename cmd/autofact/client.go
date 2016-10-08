@@ -131,7 +131,8 @@ handshake:
 					if err != nil {
 						log.Error(
 							err.Error(),
-							zap.String("op", "save connection info"),
+							zap.String("op", "save config"),
+							zap.String("file", c.Filename),
 						)
 						c.WS.Close()
 						return false

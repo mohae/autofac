@@ -45,15 +45,15 @@ type Conn struct {
 	ServerID        uint32        `json:"server_id"`
 	ConnectInterval util.Duration `json:"connect_interval"`
 	ConnectPeriod   util.Duration `json:"connect_period"`
-	filename        string
-	Conf
+	Filename        string        `json:"-"`
+	Conf            `json:"-"`
 }
 
 // LoadConn loads the config file.  The Conn's filename is set during this
 // operation.
 // TODO: revisit this design decision.
 func (c *Conn) Load(name string) error {
-	c.filename = name
+	c.Filename = name
 	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		return err
@@ -70,7 +70,7 @@ func (c *Conn) Save() error {
 	if err != nil {
 		return fmt.Errorf("fail: marshal conn cfg to JSON: %s\n", err)
 	}
-	f, err := os.OpenFile(c.filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
+	f, err := os.OpenFile(c.Filename, os.O_CREATE|os.O_TRUNC|os.O_RDWR, 0640)
 	if err != nil {
 		return fmt.Errorf("fail: conn cfg save: %s\n", err)
 	}
@@ -83,10 +83,6 @@ func (c *Conn) Save() error {
 		return fmt.Errorf("fail: conn cfg save: short write: wrote %d of %d bytes\n", n, len(j))
 	}
 	return nil
-}
-
-func (c *Conn) SetFilename(v string) {
-	c.filename = v
 }
 
 // Serialize serializes the Client conf.
