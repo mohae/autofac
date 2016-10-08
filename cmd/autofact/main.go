@@ -61,10 +61,6 @@ func init() {
 }
 
 func main() {
-	os.Exit(realMain())
-}
-
-func realMain() int {
 	// Load the AUTOPATH value
 	tmp := os.Getenv(autofactEnvName)
 	if tmp != "" {
@@ -158,7 +154,6 @@ func realMain() int {
 		}
 	}
 	<-doneCh
-	return 0
 }
 
 func SetLogging() {
