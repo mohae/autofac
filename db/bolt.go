@@ -21,7 +21,7 @@ func (e Error) Error() string {
 
 // Bolt is a container for a bolt database
 type Bolt struct {
-	DB       *bolt.DB
+	*bolt.DB
 	Filename string
 }
 

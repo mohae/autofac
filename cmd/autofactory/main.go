@@ -142,6 +142,7 @@ func realMain() int {
 		)
 		return 1
 	}
+	defer srvr.DB.Close()
 
 	// connect to Influx
 	// TODO make this optional; if Influx isn't going to be used, leverage
