@@ -14,9 +14,11 @@ import (
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
+	load "github.com/mohae/joefriday/sysinfo/load"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
+	"github.com/uber-go/zap"
 )
 
 const IDLen = 8
@@ -42,6 +44,9 @@ type Client struct {
 	ServerURL   url.URL
 	genLock     sync.Mutex
 	idGen       snoflinga.Generator
+	// The func is assigned on creation as the implementation could change
+	// depending on where the output is directed and/or requested format.
+	LoadAvg func() ([]byte, error)
 }
 
 func NewClient(c conf.Conn) *Client {
@@ -70,7 +75,11 @@ func (c *Client) Connect() bool {
 	// connect to server; retry until the retry period has expired
 	for {
 		if time.Now().After(retryEnd) {
-			fmt.Fprintf(os.Stderr, "timed out while trying to connect to the server: %s\n", c.ServerURL.String())
+			log.Warn(
+				"timed out",
+				zap.String("op", "connect"),
+				zap.String("server", c.ServerURL.String()),
+			)
 			return false
 		}
 		err := c.DialServer()
@@ -78,12 +87,20 @@ func (c *Client) Connect() bool {
 			break
 		}
 		time.Sleep(c.ConnectInterval.Duration)
-		fmt.Printf("unable to connect to the server %s: retrying...\n", c.ServerURL.String())
+		log.Debug(
+			"failed: retrying...",
+			zap.String("op", "connect"),
+			zap.String("server", c.ServerURL.String()),
+		)
 	}
 	// Send the ID
-	err := c.WS.WriteMessage(websocket.TextMessage, []byte(c.Conn.ID))
+	err := c.WS.WriteMessage(websocket.TextMessage, c.Conn.ID)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error while sending ID: %s\n", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "send id"),
+			zap.String("id", string(c.Conn.ID)),
+		)
 		c.WS.Close()
 		return false
 	}
@@ -93,7 +110,10 @@ handshake:
 	for {
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error while Reading ID response: %s\n", err)
+			log.Error(
+				err.Error(),
+				zap.String("op", "read message"),
+			)
 			c.WS.Close()
 			return false
 		}
@@ -109,7 +129,10 @@ handshake:
 					c.Conn.ID = c.Conf.IDBytes() // save the ID; if it was an
 					err := c.Save()
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "error while saving Conn info: %s\n", err)
+						log.Error(
+							err.Error(),
+							zap.String("op", "save connection info"),
+						)
 						c.WS.Close()
 						return false
 					}
@@ -117,18 +140,26 @@ handshake:
 			case message.EOT:
 				break handshake
 			default:
-				fmt.Fprint(os.Stderr, "unknown message type received during handshake; quitting\n")
+				log.Error("unknown message type received during handshake")
 				return false
 			}
 		case websocket.TextMessage:
 			fmt.Printf("%s\n", string(p))
 		default:
-			fmt.Printf("unexpected welcome response type %d: %v\n", typ, p)
+			log.Error(
+				"unknown message type",
+				zap.Int("type", typ),
+				zap.Base64("message", p),
+			)
 			c.WS.Close()
 			return false
 		}
 	}
-	fmt.Printf("%s connected\n", c.Conn.ID)
+	log.Debug(
+		"success",
+		zap.String("op", "connect"),
+		zap.String("id", c.ServerURL.String()),
+	)
 	c.mu.Lock()
 	c.isConnected = true
 	c.mu.Unlock()
@@ -169,7 +200,10 @@ func (c *Client) MessageWriter(doneCh chan struct{}) {
 			}
 			err := c.WS.WriteMessage(websocket.BinaryMessage, p)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing message: %s\n", err)
+				log.Error(
+					err.Error(),
+					zap.String("op", "write message"),
+				)
 			}
 			// TODO does this need to handle healthbeat?
 		}
@@ -183,7 +217,11 @@ func (c *Client) Reconnect() bool {
 	for i := 0; i < 4; i++ {
 		b := c.Connect()
 		if b {
-			fmt.Println("reconnect true")
+			log.Debug(
+				"reconnected",
+				zap.String("op", "reconnect"),
+				zap.String("server", c.ServerURL.String()),
+			)
 			return b
 		}
 	}
@@ -196,25 +234,78 @@ func (c *Client) Listen(doneCh chan struct{}) {
 	for {
 		typ, p, err := c.WS.ReadMessage()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading message: %s\n", err)
+			log.Error(
+				err.Error(),
+				zap.String("op", "read message"),
+			)
 			if _, ok := err.(*websocket.CloseError); !ok {
 				return
 			}
-			fmt.Println("reconnecting from read messages")
+			log.Debug(
+				"connection closed: reconnecting",
+				zap.String("op", "read message"),
+			)
 			connected := c.Reconnect()
 			if connected {
+				log.Debug(
+					"connection re-established",
+					zap.String("op", "read message"),
+				)
 				continue
 			}
-			fmt.Fprintln(os.Stderr, "unable to reconnect to server")
+			log.Error(
+				"reconnect failed",
+				zap.String("op", "read message"),
+			)
 			return
 		}
 		switch typ {
 		case websocket.TextMessage:
-			fmt.Printf("textmessage: %s\n", p)
+			log.Debug(
+				string(p),
+				zap.String("op", "read message"),
+				zap.String("type", "text"),
+			)
 			if bytes.Equal(p, autofact.LoadAvg) {
-				err = c.LoadAvg()
+				p, err = c.LoadAvg()
 				if err != nil {
-					fmt.Fprintf(os.Stderr, "loadavg error: %s", err)
+					log.Error(
+						err.Error(),
+						zap.String("op", "healthbeat"),
+						zap.String("data", "loadavg"),
+					)
+					continue
+				}
+				err = c.WS.WriteMessage(websocket.BinaryMessage, c.NewMessage(message.LoadAvg, p))
+				if err != nil {
+					if _, ok := err.(*websocket.CloseError); !ok {
+						log.Error(
+							err.Error(),
+							zap.String("op", "write message"),
+							zap.String("type", "loadavg"),
+						)
+						return
+					}
+					log.Debug(
+						"connection closed: reconnecting",
+						zap.String("op", "write message"),
+						zap.String("type", "loadavg"),
+					)
+					connected := c.Reconnect()
+					if connected {
+						log.Debug(
+							"connection re-established",
+							zap.String("op", "write message"),
+							zap.String("type", "loadavg"),
+						)
+						continue
+					}
+					log.Error(
+						"reconnect failed",
+						zap.String("op", "write message"),
+						zap.String("type", "loadavg"),
+					)
+					return
 				}
 				continue
 			}
@@ -227,53 +318,83 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
 			if err != nil {
 				if _, ok := err.(*websocket.CloseError); !ok {
+					log.Error(
+						err.Error(),
+						zap.String("op", "write text message"),
+					)
 					return
 				}
-				fmt.Println("reconnect from writing message: textmessage")
+				log.Debug(
+					"connection closed: reconnecting",
+					zap.String("op", "write message"),
+					zap.String("type", "text"),
+				)
 				connected := c.Reconnect()
 				if connected {
+					log.Debug(
+						"connection re-established",
+						zap.String("op", "write message"),
+						zap.String("type", "text"),
+					)
 					continue
 				}
-				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
+				log.Error(
+					"reconnect failed",
+					zap.String("op", "write message"),
+					zap.String("type", "text"),
+				)
 				return
 			}
 		case websocket.BinaryMessage:
 			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
+				log.Error(
+					err.Error(),
+					zap.String("op", "write message"),
+					zap.String("type", "ack"),
+				)
 				if _, ok := err.(*websocket.CloseError); !ok {
 					return
 				}
-				fmt.Println("reconnect from writing message: binarymessage")
+				log.Debug(
+					"connection closed: reconnecting",
+					zap.String("op", "write message"),
+					zap.String("type", "ack"),
+				)
 				connected := c.Reconnect()
 				if connected {
+					log.Debug(
+						"connection re-established",
+						zap.String("op", "write message"),
+						zap.String("type", "ack"),
+					)
 					continue
 				}
-				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
+				log.Error(
+					"reconnect failed",
+					zap.String("op", "write message"),
+					zap.String("type", "ack"),
+				)
 				return
 			}
 			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
-			fmt.Printf("closemessage: %x\n", p)
-			fmt.Println("reconnect from writing message: closemessage")
+			log.Debug(
+				"connection closed by remote: reconnecting",
+			)
 			connected := c.Reconnect()
 			if connected {
+				log.Debug(
+					"remote connection re-established",
+				)
 				continue
 			}
-			fmt.Fprintln(os.Stderr, "unable to reconnect to server")
+			log.Error(
+				"remote reconnect failed",
+			)
 			return
 		}
 	}
-}
-
-// LoadAvg gets the current loadavg and pushes the bytes into the message queue
-func (c *Client) LoadAvg() error {
-	p, err := loadf.Get()
-	if err != nil {
-		return err
-	}
-	c.sendB <- c.NewMessage(message.LoadAvg, p)
-	return nil
 }
 
 // IsConnected returns if the client is connected.
@@ -291,7 +412,11 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 	// ticker for cpu utilization data
 	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.CPUUtilizationPeriod()))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "CPUUtilization: error creating ticker: %s", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "cpuutilization"),
+		)
 		return
 	}
 	cpuTickr := cpuTicker.(*cpuutil.Ticker)
@@ -302,7 +427,10 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 		select {
 		case data, ok := <-cpuTickr.Data:
 			if !ok {
-				fmt.Println("CPUUtilization ticker closed")
+				log.Error(
+					"ticker closed",
+					zap.String("type", "cpuutilization"),
+				)
 				return
 			}
 			c.sendB <- c.NewMessage(message.CPUUtilization, data)
@@ -320,7 +448,11 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 	// ticker for meminfo data
 	memTicker, err := memf.NewTicker(time.Duration(c.Conf.MemInfoPeriod()))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error creating ticker for MemInfo: %s", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "meminfo"),
+		)
 		return
 	}
 	memTickr := memTicker.(*memf.Ticker)
@@ -330,7 +462,10 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 		select {
 		case data, ok := <-memTickr.Data:
 			if !ok {
-				fmt.Println("mem info chan closed")
+				log.Error(
+					"ticker closed",
+					zap.String("type", "meminfo"),
+				)
 				return
 			}
 			c.sendB <- c.NewMessage(message.MemInfo, data)
@@ -348,7 +483,11 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 	// ticker for network usage data
 	netTicker, err := netf.NewTicker(time.Duration(c.Conf.NetUsagePeriod()))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "NetUsage: error creating ticker: %s", err)
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "netusage"),
+		)
 		return
 	}
 	netTickr := netTicker.(*netf.Ticker)
@@ -359,7 +498,10 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 		select {
 		case data, ok := <-netTickr.Data:
 			if !ok {
-				fmt.Println("NetUsage ticker closed")
+				log.Error(
+					"ticker closed",
+					zap.String("type", "netusage"),
+				)
 				return
 			}
 			c.sendB <- c.NewMessage(message.NetUsage, data)
@@ -379,8 +521,56 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	case message.ClientConf:
 		c.Conf.Deserialize(msg.DataBytes())
 	default:
-		fmt.Println("unknown message kind")
-		fmt.Println(string(p))
+		log.Warn(
+			"unknown message kind",
+			zap.String("type", k.String()),
+			zap.Base64("data", p),
+		)
 	}
 	return nil
+}
+
+// HealthbeatLocal gets the healthbeat on a ticker and saves it to the datalog.
+// This is only used when serverless.  The client's configured HealthbeatPeriod
+// is used for the ticker; for non-serverless environments that value is
+// ignored as the healthbeat is gathered on a server pull request.
+func (c *Client) HealthbeatLocal(done chan struct{}) {
+	// If this was set to 0; don't do a healthbeat.
+	if c.Conf.HealthbeatPeriod() == 0 {
+		return
+	}
+	loadLogger := log.With(
+		zap.String("id", string(c.Conf.IDBytes())),
+	)
+	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			// request the Healthbeat; serveClient will handle the response.
+			l, err := LoadAvg()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conf.IDBytes()), err)
+				return
+			} // log the data
+			loadLogger.Info(
+				"loadavg",
+				zap.Float64("one", l.One),
+				zap.Float64("five", l.Five),
+				zap.Float64("fifteen", l.Fifteen),
+			)
+		case <-done:
+			return
+		}
+	}
+}
+
+// LoadAvgFB gets the current loadavg as Flatbuffer serialized bytes.
+func LoadAvgFB() ([]byte, error) {
+	return loadf.Get()
+}
+
+// LoadAvg gets the current loadavg.
+func LoadAvg() (load.LoadAvg, error) {
+	return load.Get()
 }
