@@ -71,10 +71,9 @@ func main() {
 	// make sure the autofact path exists (create if it doesn't)
 	err := os.MkdirAll(autofactPath, 0760)
 	if err != nil {
-		log.Fatal(
-			err.Error(),
-			zap.String("op", "create AUTOFACT_PATH"),
-		)
+		fmt.Fprintf(os.Stderr, "unable to create AUTOFACT_PATH: %s\n", err)
+		fmt.Fprintln(os.Stderr, "startup error: exiting")
+		os.Exit(1)
 	}
 
 	// finalize the paths
