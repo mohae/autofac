@@ -133,7 +133,7 @@ func realMain() int {
 		}
 	}
 	// bdb is used as the extension for bolt db.
-	err = srvr.DB.Open(srvr.BoltDBFile)
+	err = srvr.Bolt.Open(srvr.BoltDBFile)
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -142,7 +142,7 @@ func realMain() int {
 		)
 		return 1
 	}
-	defer srvr.DB.Close()
+	defer srvr.Bolt.Close()
 
 	// connect to Influx
 	// TODO make this optional; if Influx isn't going to be used, leverage
@@ -182,7 +182,7 @@ func handleSignals(srvr *server) {
 		"os signal received: shutting down autofactory",
 		zap.Object("signal", v),
 	)
-	srvr.DB.DB.Close()
+	srvr.Bolt.Close()
 	os.Exit(1)
 }
 

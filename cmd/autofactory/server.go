@@ -43,7 +43,7 @@ type server struct {
 	// more than once:  this requires detection of reconnect of an
 	// existing client vs an existing client maintaining multiple
 	// con-current connections
-	DB db.Bolt `json:"-"`
+	db.Bolt `json:"-"`
 	// InfluxDB client
 	*InfluxClient `json:"-"`
 	// DB info.
@@ -75,7 +75,7 @@ func (s *server) NewSnowflakeGenerator() {
 // something?)
 func (s *server) LoadInventory() (int, error) {
 	var n int
-	clients, err := s.DB.Clients()
+	clients, err := s.Bolt.Clients()
 	if err != nil {
 		return n, err
 	}
@@ -125,7 +125,7 @@ func (s *server) NewClient() (c *Client, err error) {
 		}
 	}
 	// save the client info to the db
-	err = s.DB.SaveClient(c.Conf)
+	err = s.Bolt.SaveClient(c.Conf)
 	return c, err
 }
 
