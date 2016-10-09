@@ -50,11 +50,14 @@ func (c *InfluxClient) Write() {
 		select {
 		case series, ok := <-c.seriesCh:
 			if !ok {
+				srvr.Bolt.Close() // Close Bolt because defers don't run on Fatal
+				CloseLog()        // Close ;pg because defers don't run on Fatal
 				log.Fatal(
 					"series data channel is closed",
 					zap.String("db", "influxdb"),
 					zap.String("dbname", c.DBName),
 				)
+
 			}
 			// TODO: work out error handling
 			if series.err != nil {

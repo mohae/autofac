@@ -42,6 +42,10 @@ var (
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
+
+	// These are globals so that they can be closed
+	f        *os.File
+	isStdErr bool
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
@@ -94,7 +98,7 @@ func main() {
 
 	// now that everything is parsed; set up logging
 	SetLogging()
-
+	defer CloseLog()
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
 	if connMsg != "" && !serverless {
@@ -126,6 +130,7 @@ func main() {
 			// retry on fail until retry attempts have been exceeded
 		}
 		if !c.IsConnected() {
+			CloseLog() // defer doesn't run on fatal
 			log.Fatal(
 				"unable to connect",
 				zap.String("server", c.ServerURL.String()),
@@ -157,10 +162,10 @@ func main() {
 
 func SetLogging() {
 	// if logfile is empty, use Stderr
-	var f *os.File
 	var err error
 	if logfile == "" {
 		f = os.Stderr
+		isStdErr = true
 	} else {
 		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 		if err != nil {
@@ -174,4 +179,11 @@ func SetLogging() {
 		zap.Output(f),
 	)
 	log.SetLevel(*loglevel)
+}
+
+// CloseLog closes the log file before exiting.
+func CloseLog() {
+	if !isStdErr && f != nil {
+		f.Close()
+	}
 }

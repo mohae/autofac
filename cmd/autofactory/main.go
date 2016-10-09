@@ -39,6 +39,8 @@ var (
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
+	f        *os.File
+	isStdErr bool
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
@@ -98,6 +100,7 @@ func realMain() int {
 
 	// now that everything is parsed; set up logging
 	SetLogging()
+	defer CloseLog()
 
 	srvr.ID = []byte(serverID)
 	srvr.NewSnowflakeGenerator()
@@ -183,15 +186,16 @@ func handleSignals(srvr *server) {
 		zap.Object("signal", v),
 	)
 	srvr.Bolt.Close()
+	CloseLog()
 	os.Exit(1)
 }
 
 func SetLogging() {
 	// if logfile is empty, use Stderr
-	var f *os.File
 	var err error
 	if logfile == "" {
 		f = os.Stderr
+		isStdErr = true
 	} else {
 		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 		if err != nil {
@@ -205,4 +209,11 @@ func SetLogging() {
 		zap.Output(f),
 	)
 	log.SetLevel(*loglevel)
+}
+
+// CloseLog closes the log file
+func CloseLog() {
+	if !isStdErr && f != nil {
+		f.Close()
+	}
 }
