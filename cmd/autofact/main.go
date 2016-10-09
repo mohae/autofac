@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact/conf"
 	"github.com/uber-go/zap"
 )
@@ -114,6 +116,9 @@ func main() {
 	c := NewClient(connConf)
 	c.AutoPath = autofactPath
 
+	// handle signals
+	go handleSignals(c)
+
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
 
@@ -138,7 +143,7 @@ func main() {
 		}
 	}
 
-	// start the go routines first
+	// start the go routines for socket communications
 	go c.Listen(doneCh)
 	go c.MemInfo(doneCh)
 	go c.CPUUtilization(doneCh)
@@ -186,4 +191,24 @@ func CloseLog() {
 	if !isStdErr && f != nil {
 		f.Close()
 	}
+}
+
+func handleSignals(c *Client) {
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt)
+	v := <-ch
+	log.Info(
+		"os signal received: shutting down autofact",
+		zap.Object("signal", v.String()),
+	)
+	// If there's a connection send a close signal
+	if c.IsConnected() {
+		log.Debug(
+			"closing connection",
+			zap.String("op", "shutdown"),
+		)
+		c.WS.WriteMessage(websocket.CloseMessage, []byte(string(c.Conn.ID)+" shutting down"))
+	}
+	CloseLog()
+	os.Exit(1)
 }
