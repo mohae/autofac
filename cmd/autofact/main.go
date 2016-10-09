@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact/conf"
+	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
 
@@ -44,9 +45,13 @@ var (
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
-
-	// These are globals so that they can be closed
 	f        *os.File
+
+	dataLog     czap.Logger // use mohae's fork to support level description override
+	dataLogFile string
+	dataFile    *os.File
+	// These are globals so that they can be closed
+
 	isStdErr bool
 )
 
@@ -61,9 +66,14 @@ func init() {
 	flag.StringVar(&connConf.ServerPort, pVar, "8675", "the connection port (short)")
 	flag.StringVar(&logfile, "logfile", "autofact.log", "application log file; if empty stderr will be used")
 	flag.StringVar(&logfile, "l", "autofact.log", "application log file; if empty stderr will be used")
+	flag.StringVar(&dataLogFile, "datafile", "autodata.json", "the file that the collected data gets written when running serverless")
+	flag.StringVar(&dataLogFile, "d", "autodata.json", "the file that the collected data gets written when running serverless")
 	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
+
+	// override czap description for InfoLevel
+	czap.InfoString = "data"
 }
 
 func main() {
@@ -122,7 +132,16 @@ func main() {
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
 
-	if !serverless {
+	if serverless { // open the datafile to use
+		if dataLogFile == "" {
+			log.Fatal(
+				"filename is not specified",
+				zap.String("op", "open data file"),
+			)
+		}
+		SetDataLog()
+		defer dataFile.Close()
+	} else { // connect to the server
 		// connect to the Server
 		c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
 
@@ -186,10 +205,33 @@ func SetLogging() {
 	log.SetLevel(*loglevel)
 }
 
+func SetDataLog() {
+	var err error
+	dataFile, err = os.OpenFile(dataLogFile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	if err != nil {
+		log.Fatal(
+			err.Error(),
+			zap.String("op", "open datafile"),
+			zap.String("filename", dataLogFile),
+		)
+	}
+	dataLog = czap.New(
+		czap.NewJSONEncoder(
+			czap.RFC3339Formatter("ts"),
+		),
+		czap.Output(dataFile),
+	)
+	dataLog.SetLevel(czap.InfoLevel)
+}
+
 // CloseLog closes the log file before exiting.
 func CloseLog() {
 	if !isStdErr && f != nil {
 		f.Close()
+	}
+	// If running serverless, close the data file.
+	if serverless {
+		dataFile.Close()
 	}
 }
 
@@ -210,5 +252,6 @@ func handleSignals(c *Client) {
 		c.WS.WriteMessage(websocket.CloseMessage, []byte(string(c.Conn.ID)+" shutting down"))
 	}
 	CloseLog()
+
 	os.Exit(1)
 }
