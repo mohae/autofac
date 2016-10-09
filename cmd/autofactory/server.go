@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -187,33 +186,15 @@ func (c *Client) Listen(doneCh chan struct{}) {
 		}
 		switch typ {
 		case websocket.TextMessage:
-			log.Debug(
+			// Currently, no text message are expected so warn.
+			// TODO is just logging it as a warn the correct course of action here?
+			log.Warn(
 				string(p),
 				zap.String("op", "receive message"),
 				zap.String("type", util.WSString(typ)),
 			)
-			if bytes.Equal(p, autofact.AckMsg) {
-				// if this is an acknowledgement message, do nothing
-				continue
-			}
-			err := c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				if _, ok := err.(*websocket.CloseError); !ok {
-					return
-				}
-				fmt.Println("client closed connection...waiting for reconnect")
-				return
-			}
+
 		case websocket.BinaryMessage:
-			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
-				if _, ok := err.(*websocket.CloseError); !ok {
-					return
-				}
-				fmt.Println("client closed connection...waiting for reconnect")
-				return
-			}
 			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
 			log.Info(

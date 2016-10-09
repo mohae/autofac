@@ -310,75 +310,9 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				}
 				continue
 			}
-			if bytes.Equal(p, autofact.AckMsg) {
-				// if this is an acknowledgement message, do nothing
-				// TODO: should tracking of acks, per message, for certain
-				// message kinds be done?
-				continue
-			}
-			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				if _, ok := err.(*websocket.CloseError); !ok {
-					log.Error(
-						err.Error(),
-						zap.String("op", "write text message"),
-					)
-					return
-				}
-				log.Debug(
-					"connection closed: reconnecting",
-					zap.String("op", "write message"),
-					zap.String("type", "text"),
-				)
-				connected := c.Reconnect()
-				if connected {
-					log.Debug(
-						"connection re-established",
-						zap.String("op", "write message"),
-						zap.String("type", "text"),
-					)
-					continue
-				}
-				log.Error(
-					"reconnect failed",
-					zap.String("op", "write message"),
-					zap.String("type", "text"),
-				)
-				return
-			}
 		case websocket.BinaryMessage:
-			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				log.Error(
-					err.Error(),
-					zap.String("op", "write message"),
-					zap.String("type", "ack"),
-				)
-				if _, ok := err.(*websocket.CloseError); !ok {
-					return
-				}
-				log.Debug(
-					"connection closed: reconnecting",
-					zap.String("op", "write message"),
-					zap.String("type", "ack"),
-				)
-				connected := c.Reconnect()
-				if connected {
-					log.Debug(
-						"connection re-established",
-						zap.String("op", "write message"),
-						zap.String("type", "ack"),
-					)
-					continue
-				}
-				log.Error(
-					"reconnect failed",
-					zap.String("op", "write message"),
-					zap.String("type", "ack"),
-				)
-				return
-			}
-			c.processBinaryMessage(p)
+			// nothing right now
+			// TODO validate that nothing is thecorrect thing here
 		case websocket.CloseMessage:
 			log.Debug(
 				"connection closed by remote: reconnecting",
