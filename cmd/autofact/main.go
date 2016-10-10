@@ -108,7 +108,7 @@ func main() {
 
 	// now that everything is parsed; set up logging
 	SetLogging()
-	defer CloseLog()
+	defer CloseOut()
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
 	if connMsg != "" && !serverless {
@@ -132,8 +132,7 @@ func main() {
 
 	// Set up the output destination.
 	if serverless { // open the datafile to use
-		SetDataLog()
-		defer CloseLog()
+		SetDataOut()
 	} else { // connect to the server
 		// connect to the Server
 		c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
@@ -147,8 +146,8 @@ func main() {
 			// retry on fail until retry attempts have been exceeded
 		}
 		if !c.IsConnected() {
-			CloseLog() // defer doesn't run on fatal
-			log.Fatal(
+			CloseOut() // defer doesn't run on fatal
+			log.Error(
 				"unable to connect",
 				zap.String("server", c.ServerURL.String()),
 			)
@@ -205,7 +204,7 @@ func SetLogging() {
 	log.SetLevel(*loglevel)
 }
 
-func SetDataLog() {
+func SetDataOut() {
 	var err error
 	if dataDest == "" || dataDest == "stdout" {
 		dataOut = os.Stdout
@@ -233,8 +232,8 @@ newData:
 	data.SetLevel(czap.WarnLevel)
 }
 
-// CloseLog closes the log file before exiting.
-func CloseLog() {
+// CloseOut closes the local output destinations before shutdown.
+func CloseOut() {
 	if logOut != nil {
 		logOut.Close()
 	}
@@ -260,7 +259,7 @@ func handleSignals(c *Client) {
 		)
 		c.WS.WriteMessage(websocket.CloseMessage, []byte(string(c.Conn.ID)+" shutting down"))
 	}
-	CloseLog()
+	CloseOut()
 
 	os.Exit(1)
 }
