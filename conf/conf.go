@@ -114,3 +114,64 @@ func (c *Client) Serialize() []byte {
 func (c *Client) Deserialize(p []byte) {
 	c = GetRootAsClient(p, 0)
 }
+
+// Collect defines the collection periods of various data.
+type Collect struct {
+	HealthbeatPeriod     util.Duration `json:"healthbeat_period"`
+	CPUUtilizationPeriod util.Duration `json:"cpuutilization_period"`
+	MemInfoPeriod        util.Duration `json:"meminfo_period"`
+	NetUsagePeriod       util.Duration `json:"netusage_period"`
+}
+
+// Load loads the Collect configuration from the specified file.
+func (c *Collect) Load(file string) error {
+	b, err := ioutil.ReadFile(file)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(b, c)
+	if err != nil {
+		return fmt.Errorf("error unmarshaling client conf file %s: %s", file, err)
+	}
+	return nil
+}
+
+// Returns a Collect with application defaults.  This is called when the
+// collect file cannot be found.
+func (c *Collect) UseAppDefaults() {
+	c.HealthbeatPeriod = DefaultHealthbeatPeriod
+	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
+	c.MemInfoPeriod = DefaultMemInfoPeriod
+	c.NetUsagePeriod = DefaultNetUsagePeriod
+}
+
+func (c *Collect) SaveAsJSON(fname string) error {
+	b, err := json.MarshalIndent(c, "", "\t")
+	if err != nil {
+		return fmt.Errorf("error marshaling Collect to JSON: %s", err)
+	}
+	err = ioutil.WriteFile(fname, b, 0600)
+	if err != nil {
+		return fmt.Errorf("Collect save error: %s", err)
+	}
+	return nil
+}
+
+// Serialize serializes the struct as a conf.Client.
+func (c *Collect) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	ClientStart(bldr)
+	ClientAddMemInfoPeriod(bldr, c.MemInfoPeriod.Int64())
+	ClientAddCPUUtilizationPeriod(bldr, c.CPUUtilizationPeriod.Int64())
+	ClientAddNetUsagePeriod(bldr, c.NetUsagePeriod.Int64())
+	bldr.Finish(ClientEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
+}
+
+// Deserialize deserializes serialized conf.Client into Collect.
+func (c *Collect) Deserialize(p []byte) {
+	cnf := GetRootAsClient(p, 0)
+	c.MemInfoPeriod.Set(cnf.MemInfoPeriod())
+	c.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
+	c.NetUsagePeriod.Set(cnf.NetUsagePeriod())
+}

@@ -4,5 +4,9 @@
 	"server_port": "8675",
 	"server_id": 0,
 	"connect_interval": "5s",
-	"connect_period": "15m"
+	"connect_period": "15m",
+	"healthbeat_period": "10s",
+	"cpuutilization_period": "1m",
+	"meminfo_period": "1m0s",
+	"netusage_period": "5m0s",
 }

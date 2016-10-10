@@ -109,7 +109,7 @@ func realMain() int {
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
 	// client, or group, or role, or pod, etc.
-	err = srvr.ClientConf.Load(clientConfFile)
+	err = srvr.Collect.Load(clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Error(
@@ -126,8 +126,8 @@ func realMain() int {
 			zap.String("file", clientConfFile),
 		)
 		// write this out to the app dir
-		srvr.ClientConf.UseAppDefaults()
-		err = srvr.ClientConf.SaveAsJSON(clientConfFile)
+		srvr.Collect.UseAppDefaults()
+		err = srvr.Collect.SaveAsJSON(clientConfFile)
 		if err != nil { // a save error isn't fatal
 			log.Error(
 				err.Error(),
