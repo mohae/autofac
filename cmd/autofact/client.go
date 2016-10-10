@@ -476,7 +476,7 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 	if c.Conf.HealthbeatPeriod() == 0 {
 		return
 	}
-	loadOut := dataLog.With(
+	loadOut := data.With(
 		czap.String("id", string(c.Conf.IDBytes())),
 	)
 	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))

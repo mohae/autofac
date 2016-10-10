@@ -46,7 +46,7 @@ var (
 	logDest  string
 	logOut   *os.File
 
-	dataLog  czap.Logger // use mohae's fork to support level description override
+	data     czap.Logger // use mohae's fork to support level description override
 	dataDest string
 	dataOut  *os.File
 
@@ -209,11 +209,11 @@ func SetDataLog() {
 	var err error
 	if dataDest == "" || dataDest == "stdout" {
 		dataOut = os.Stdout
-		goto newLog
+		goto newData
 	}
 	if dataDest == "stderr" {
 		dataOut = os.Stderr
-		goto newLog
+		goto newData
 	}
 	dataOut, err = os.OpenFile(dataDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 	if err != nil {
@@ -223,14 +223,14 @@ func SetDataLog() {
 			zap.String("filename", dataDest),
 		)
 	}
-newLog:
-	dataLog = czap.New(
+newData:
+	data = czap.New(
 		czap.NewJSONEncoder(
 			czap.RFC3339Formatter("ts"),
 		),
 		czap.Output(dataOut),
 	)
-	dataLog.SetLevel(czap.WarnLevel)
+	data.SetLevel(czap.WarnLevel)
 }
 
 // CloseLog closes the log file before exiting.
