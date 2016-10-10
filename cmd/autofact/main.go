@@ -71,7 +71,7 @@ func init() {
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 
 	// override czap description for InfoLevel
-	czap.InfoString = "data"
+	czap.WarnString = "data"
 }
 
 func main() {
@@ -230,7 +230,7 @@ newLog:
 		),
 		czap.Output(dataOut),
 	)
-	dataLog.SetLevel(czap.InfoLevel)
+	dataLog.SetLevel(czap.WarnLevel)
 }
 
 // CloseLog closes the log file before exiting.

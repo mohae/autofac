@@ -18,6 +18,7 @@ import (
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
+	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
 
@@ -475,8 +476,8 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 	if c.Conf.HealthbeatPeriod() == 0 {
 		return
 	}
-	loadLogger := log.With(
-		zap.String("id", string(c.Conf.IDBytes())),
+	loadOut := dataLog.With(
+		czap.String("id", string(c.Conf.IDBytes())),
 	)
 	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
 	defer ticker.Stop()
@@ -489,11 +490,11 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conf.IDBytes()), err)
 				return
 			} // log the data
-			loadLogger.Info(
+			loadOut.Warn(
 				"loadavg",
-				zap.Float64("one", l.One),
-				zap.Float64("five", l.Five),
-				zap.Float64("fifteen", l.Fifteen),
+				czap.Float64("one", l.One),
+				czap.Float64("five", l.Five),
+				czap.Float64("fifteen", l.Fifteen),
 			)
 		case <-done:
 			return
