@@ -190,12 +190,17 @@ func SetLogging() {
 	var err error
 	if logDest == "" || logDest == "stderr" {
 		logOut = os.Stderr
-	} else {
-		logOut, err = os.OpenFile(logDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
-		if err != nil {
-			panic(err)
-		}
+		goto newLog
 	}
+	if logDest == "stdout" {
+		logOut = os.Stdout
+		goto newLog
+	}
+	logOut, err = os.OpenFile(logDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	if err != nil {
+		panic(err)
+	}
+newLog:
 	log = zap.New(
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),

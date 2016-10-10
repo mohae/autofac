@@ -38,7 +38,7 @@ var (
 	// Logging
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
-	logfile  string
+	logDest  string
 	logOut   *os.File
 
 	// The default directory used by Autofactory for app data.
@@ -69,6 +69,8 @@ func init() {
 	flag.StringVar(&influxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
 	flag.StringVar(&influxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
 	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
+	flag.StringVar(&logDest, "logdestination", "stderr", "log output destination; if empty stderr will be used")
+	flag.StringVar(&logDest, "l", "stderr", "log output; if empty stderr will be used")
 }
 
 func main() {
@@ -192,14 +194,21 @@ func handleSignals(srvr *server) {
 func SetLogging() {
 	// if logfile is empty, use Stderr
 	var err error
-	if logfile == "" {
+	if logDest == "" || logDest == "stderr" {
 		logOut = os.Stderr
-	} else {
-		logOut, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
-		if err != nil {
-			panic(err)
-		}
+		goto newLog
 	}
+	if logDest == "stdout" {
+		logOut = os.Stdout
+		goto newLog
+	}
+
+	logOut, err = os.OpenFile(logDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	if err != nil {
+		panic(err)
+	}
+
+newLog:
 	log = zap.New(
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),
