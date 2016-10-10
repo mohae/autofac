@@ -308,6 +308,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 					)
 					return
 				}
+				c.WS.WriteMessage(websocket.TextMessage, c.NewMessage(message.LoadAvg, p))
 				continue
 			}
 		case websocket.BinaryMessage:

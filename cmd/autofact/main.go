@@ -42,7 +42,7 @@ var (
 //  FatalLevel == Unrecoverable error that results in app shutdown
 // TODO: implement data logging
 var (
-	log      zap.Logger
+	log      zap.Logger // application log
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
 	f        *os.File
@@ -132,6 +132,7 @@ func main() {
 	// doneCh is used to signal that the connection has been closed
 	doneCh := make(chan struct{})
 
+	// Set up the output destination.
 	if serverless { // open the datafile to use
 		if dataLogFile == "" {
 			log.Fatal(
@@ -162,6 +163,14 @@ func main() {
 		}
 	}
 
+	// set up the data processing
+	if serverless {
+		// since there isn't a server pull for healthbeat, a local ticker is started
+		go c.HealthbeatLocal(doneCh)
+	} else {
+		// assign the
+		c.LoadAvg = LoadAvgFB
+	}
 	// start the go routines for socket communications
 	go c.Listen(doneCh)
 	go c.MemInfo(doneCh)
