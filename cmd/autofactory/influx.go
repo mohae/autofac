@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	client "github.com/influxdata/influxdb/client/v2"
 	"github.com/uber-go/zap"
@@ -50,14 +51,14 @@ func (c *InfluxClient) Write() {
 		select {
 		case series, ok := <-c.seriesCh:
 			if !ok {
-				srvr.Bolt.Close() // Close Bolt because defers don't run on Fatal
-				CloseLog()        // Close ;pg because defers don't run on Fatal
-				log.Fatal(
+				log.Error(
 					"series data channel is closed",
 					zap.String("db", "influxdb"),
 					zap.String("dbname", c.DBName),
 				)
-
+				srvr.Bolt.Close() // Close Bolt because defers don't run on os.Exit
+				CloseLog()        // Close log because defers don't run on os.Exit
+				os.Exit(1)
 			}
 			// TODO: work out error handling
 			if series.err != nil {

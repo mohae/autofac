@@ -146,11 +146,12 @@ func main() {
 			// retry on fail until retry attempts have been exceeded
 		}
 		if !c.IsConnected() {
-			CloseOut() // defer doesn't run on fatal
 			log.Error(
 				"unable to connect",
 				zap.String("server", c.ServerURL.String()),
 			)
+			CloseOut() // defer doesn't run on fatal
+			os.Exit(1)
 		}
 	}
 
