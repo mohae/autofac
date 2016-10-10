@@ -40,7 +40,6 @@ var (
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
 	f        *os.File
-	isStdErr bool
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
@@ -195,7 +194,6 @@ func SetLogging() {
 	var err error
 	if logfile == "" {
 		f = os.Stderr
-		isStdErr = true
 	} else {
 		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 		if err != nil {
@@ -213,7 +211,7 @@ func SetLogging() {
 
 // CloseLog closes the log file
 func CloseLog() {
-	if !isStdErr && f != nil {
+	if f != nil {
 		f.Close()
 	}
 }
