@@ -39,7 +39,7 @@ var (
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
 	logfile  string
-	f        *os.File
+	logOut   *os.File
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
@@ -193,9 +193,9 @@ func SetLogging() {
 	// if logfile is empty, use Stderr
 	var err error
 	if logfile == "" {
-		f = os.Stderr
+		logOut = os.Stderr
 	} else {
-		f, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+		logOut, err = os.OpenFile(logfile, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 		if err != nil {
 			panic(err)
 		}
@@ -204,14 +204,14 @@ func SetLogging() {
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),
 		),
-		zap.Output(f),
+		zap.Output(logOut),
 	)
 	log.SetLevel(*loglevel)
 }
 
 // CloseLog closes the log file
 func CloseLog() {
-	if f != nil {
-		f.Close()
+	if logOut != nil {
+		logOut.Close()
 	}
 }
