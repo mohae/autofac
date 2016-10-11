@@ -29,8 +29,7 @@ var (
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
 	// configuration info
-	connConf    conf.Conn
-	collectConf conf.Collect
+	connConf conf.Conn
 
 	// client configuration: used for serverless
 
@@ -115,18 +114,24 @@ func main() {
 		)
 	}
 
+	// TODO add env var support
+
+	// get a client
+	c := NewClient(connConf, collectFile)
+	c.AutoPath = autofactPath
+
 	// if serverless: load the collection configuration
 	if serverless {
 		collectFile = filepath.Join(autofactPath, collectFile)
-		err = collectConf.Load(collectFile)
+		err = c.Collect.Load(collectFile)
 		if err != nil {
 			log.Warn(
 				err.Error(),
 				zap.String("op", fmt.Sprintf("load %s", collectFile)),
 				zap.String("conf", "using default collect settings"),
 			)
-			collectConf.UseDefaults()
-			err = collectConf.SaveAsJSON(collectFile)
+			c.Collect.UseDefaults()
+			err = c.Collect.SaveAsJSON(collectFile)
 			if err != nil {
 				log.Warn(
 					err.Error(),
@@ -135,12 +140,6 @@ func main() {
 			}
 		}
 	}
-
-	// TODO add env var support
-
-	// get a client
-	c := NewClient(connConf, collectFile)
-	c.AutoPath = autofactPath
 
 	// handle signals
 	go handleSignals(c)
