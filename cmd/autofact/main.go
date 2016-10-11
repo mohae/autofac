@@ -28,8 +28,10 @@ var (
 	// This is the default directory for autofact-client app data.
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
-	// connection info
-	connConf conf.Conn
+	// configuration info
+	connConf    conf.Conn
+	collectConf conf.Collect
+
 	// client configuration: used for serverless
 
 	serverless bool
@@ -87,14 +89,14 @@ func main() {
 	// finalize the paths
 	connFile = filepath.Join(autofactPath, connFile)
 
-	// process the settings
+	// process the settings: this gets read first just in case flags override
 	var connMsg string
 	err = connConf.Load(connFile)
 	if err != nil {
 		// capture the error for logging once it is setup and continue.  An error
 		// is not a show stopper as the file may not exist if this is the first
 		// time autofact has run on this node.
-		connMsg = fmt.Sprintf("using default settings")
+		connMsg = fmt.Sprintf("using default connection settings")
 	}
 
 	// Parse the flags.
@@ -108,8 +110,23 @@ func main() {
 	if connMsg != "" && !serverless {
 		log.Warn(
 			err.Error(),
+			zap.String("op", fmt.Sprintf("load %s", connFile)),
 			zap.String("conf", connMsg),
 		)
+	}
+
+	// if serverless: load the collection configuration
+	if serverless {
+		collectFile = filepath.Join(autofactPath, collectFile)
+		err = collectConf.Load(collectFile)
+		if err != nil {
+			log.Warn(
+				err.Error(),
+				zap.String("op", fmt.Sprintf("load %s", collectFile)),
+				zap.String("conf", "using default collect settings"),
+			)
+			collectConf.UseDefaults()
+		}
 	}
 
 	// TODO add env var support

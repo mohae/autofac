@@ -139,7 +139,7 @@ func (c *Collect) Load(file string) error {
 
 // Returns a Collect with application defaults.  This is called when the
 // collect file cannot be found.
-func (c *Collect) UseAppDefaults() {
+func (c *Collect) UseDefaults() {
 	c.HealthbeatPeriod = DefaultHealthbeatPeriod
 	c.CPUUtilizationPeriod = DefaultCPUUtilizationPeriod
 	c.MemInfoPeriod = DefaultMemInfoPeriod
