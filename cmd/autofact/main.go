@@ -173,15 +173,14 @@ func main() {
 	} else {
 		// assign the
 		c.LoadAvg = LoadAvgFB
+		go c.Listen(doneCh)
+		go c.MemInfo(doneCh)
+		go c.CPUUtilization(doneCh)
+		go c.NetUsage(doneCh)
+		// start the connection handler
+		go c.MessageWriter(doneCh)
 	}
 	// start the go routines for socket communications
-	go c.Listen(doneCh)
-	go c.MemInfo(doneCh)
-	go c.CPUUtilization(doneCh)
-	go c.NetUsage(doneCh)
-	// start the connection handler
-	go c.MessageWriter(doneCh)
-
 	if !serverless {
 		// if connected, save the conf: this will also save the ClientID
 		err = c.Conn.Save()
