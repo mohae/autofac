@@ -126,6 +126,13 @@ func main() {
 				zap.String("conf", "using default collect settings"),
 			)
 			collectConf.UseDefaults()
+			err = collectConf.SaveAsJSON(collectFile)
+			if err != nil {
+				log.Warn(
+					err.Error(),
+					zap.String("op", fmt.Sprintf("save %s", collectFile)),
+				)
+			}
 		}
 	}
 
