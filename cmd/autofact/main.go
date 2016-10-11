@@ -23,23 +23,19 @@ const (
 )
 
 var (
-	connFile = "autofact.json"
+	connFile    = "autofact.json"
+	collectFile = "autocollect.json"
 	// This is the default directory for autofact-client app data.
 	autofactPath    = "$HOME/.autofact"
 	autofactEnvName = "AUTOFACT_PATH"
-	// default
+	// connection info
 	connConf conf.Conn
+	// client configuration: used for serverless
+
+	serverless bool
 )
 
-// TODO determine loglevel mapping to actual usage:
-// Proposed:
-//  DebugLevel == not used
-//	InfoLevel == Gathered data
-//  WarnLevel == Connection info an non-error messages: status type
-//  ErrorLevel == Errors
-//  PanicLevel == Panic: shouldn't be used
-//  FatalLevel == Unrecoverable error that results in app shutdown
-// TODO: implement data logging
+// Vars for logging and local data output, if applicable.
 var (
 	log      zap.Logger // application log
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
@@ -49,8 +45,6 @@ var (
 	data     czap.Logger // use mohae's fork to support level description override
 	dataDest string
 	dataOut  *os.File
-
-	serverless bool
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
@@ -121,7 +115,7 @@ func main() {
 	// TODO add env var support
 
 	// get a client
-	c := NewClient(connConf)
+	c := NewClient(connConf, collectFile)
 	c.AutoPath = autofactPath
 
 	// handle signals
@@ -178,7 +172,7 @@ func main() {
 			log.Error(
 				err.Error(),
 				zap.String("op", "save conn"),
-				zap.String("file", c.Filename),
+				zap.String("file", c.Conn.Filename),
 			)
 		}
 	}

@@ -30,8 +30,8 @@ type Client struct {
 	AutoPath string
 	// Conn holds the configuration for connecting to the server.
 	conf.Conn
-	// Conf holds the client configuration (how the client behaves).
-	Conf *conf.Client
+	// Collect holds the information about client Collection configuration.
+	conf.Collect
 	// this lock is for everything except messages or other things that are
 	// already threadsafe.
 	mu sync.Mutex
@@ -50,9 +50,10 @@ type Client struct {
 	LoadAvg func() ([]byte, error)
 }
 
-func NewClient(c conf.Conn) *Client {
+func NewClient(c conf.Conn, fname string) *Client {
 	return &Client{
-		Conn: c,
+		Conn:    c,
+		Collect: conf.Collect{Filename: fname},
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
@@ -124,16 +125,20 @@ handshake:
 			msg := message.GetRootAsMessage(p, 0)
 			switch message.Kind(msg.Kind()) {
 			case message.ClientConf:
-				c.Conf = conf.GetRootAsClient(msg.DataBytes(), 0)
+				cnf := conf.GetRootAsClient(msg.DataBytes(), 0)
 				// If there's a new ID, persist it/
-				if bytes.Compare(c.Conn.ID, c.Conf.IDBytes()) != 0 {
-					c.Conn.ID = c.Conf.IDBytes() // save the ID; if it was an
-					err := c.Save()
+				if bytes.Compare(c.Conn.ID, cnf.IDBytes()) != 0 {
+					c.Conn.ID = cnf.IDBytes() // save the ID; if it was an
+					c.Collect.HealthbeatPeriod.Set(cnf.HealthbeatPeriod())
+					c.Collect.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
+					c.Collect.MemInfoPeriod.Set(cnf.MemInfoPeriod())
+					c.Collect.NetUsagePeriod.Set(cnf.NetUsagePeriod())
+					err := c.Collect.SaveAsJSON(c.Collect.Filename)
 					if err != nil {
 						log.Error(
 							err.Error(),
 							zap.String("op", "save config"),
-							zap.String("file", c.Filename),
+							zap.String("file", c.Collect.Filename),
 						)
 						c.WS.Close()
 						return false
@@ -343,11 +348,11 @@ func (c *Client) IsConnected() bool {
 
 func (c *Client) CPUUtilization(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
-	if c.Conf.CPUUtilizationPeriod() == 0 {
+	if c.Collect.CPUUtilizationPeriod.Int64() == 0 {
 		return
 	}
 	// ticker for cpu utilization data
-	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Conf.CPUUtilizationPeriod()))
+	cpuTicker, err := cpuutil.NewTicker(time.Duration(c.Collect.CPUUtilizationPeriod.Int64()))
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -379,11 +384,11 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 
 func (c *Client) MemInfo(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
-	if c.Conf.MemInfoPeriod() == 0 {
+	if c.Collect.MemInfoPeriod.Int64() == 0 {
 		return
 	}
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.MemInfoPeriod()))
+	memTicker, err := memf.NewTicker(time.Duration(c.Collect.MemInfoPeriod.Int64()))
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -414,11 +419,11 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 
 func (c *Client) NetUsage(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
-	if c.Conf.NetUsagePeriod() == 0 {
+	if c.Collect.NetUsagePeriod.Int64() == 0 {
 		return
 	}
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Conf.NetUsagePeriod()))
+	netTicker, err := netf.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -456,7 +461,11 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.ClientConf:
-		c.Conf.Deserialize(msg.DataBytes())
+		cl := conf.GetRootAsClient(msg.DataBytes(), 0)
+		c.Collect.HealthbeatPeriod.Set(cl.HealthbeatPeriod())
+		c.Collect.CPUUtilizationPeriod.Set(cl.CPUUtilizationPeriod())
+		c.Collect.MemInfoPeriod.Set(cl.MemInfoPeriod())
+		c.Collect.NetUsagePeriod.Set(cl.NetUsagePeriod())
 	default:
 		log.Warn(
 			"unknown message kind",
@@ -473,13 +482,13 @@ func (c *Client) processBinaryMessage(p []byte) error {
 // ignored as the healthbeat is gathered on a server pull request.
 func (c *Client) HealthbeatLocal(done chan struct{}) {
 	// If this was set to 0; don't do a healthbeat.
-	if c.Conf.HealthbeatPeriod() == 0 {
+	if c.Collect.HealthbeatPeriod.Int64() == 0 {
 		return
 	}
 	loadOut := data.With(
-		czap.String("id", string(c.Conf.IDBytes())),
+		czap.String("id", string(c.Conn.ID)),
 	)
-	ticker := time.NewTicker(time.Duration(c.Conf.HealthbeatPeriod()))
+	ticker := time.NewTicker(time.Duration(c.Collect.HealthbeatPeriod.Int64()))
 	defer ticker.Stop()
 	for {
 		select {
@@ -487,7 +496,7 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 			// request the Healthbeat; serveClient will handle the response.
 			l, err := LoadAvg()
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conf.IDBytes()), err)
+				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conn.ID), err)
 				return
 			} // log the data
 			loadOut.Warn(

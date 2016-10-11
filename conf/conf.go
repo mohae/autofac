@@ -121,6 +121,7 @@ type Collect struct {
 	CPUUtilizationPeriod util.Duration `json:"cpuutilization_period"`
 	MemInfoPeriod        util.Duration `json:"meminfo_period"`
 	NetUsagePeriod       util.Duration `json:"netusage_period"`
+	Filename             string        `json:"-"`
 }
 
 // Load loads the Collect configuration from the specified file.
