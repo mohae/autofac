@@ -171,6 +171,15 @@ func main() {
 			CloseOut() // defer doesn't run on fatal
 			os.Exit(1)
 		}
+		// if connected, save the conf: this will also save the ClientID
+		err = c.Conn.Save()
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "save conn"),
+				zap.String("file", c.Conn.Filename),
+			)
+		}
 	}
 
 	// set up the data processing
@@ -186,18 +195,6 @@ func main() {
 		go c.NetUsage(doneCh)
 		// start the connection handler
 		go c.MessageWriter(doneCh)
-	}
-	// start the go routines for socket communications
-	if !serverless {
-		// if connected, save the conf: this will also save the ClientID
-		err = c.Conn.Save()
-		if err != nil {
-			log.Error(
-				err.Error(),
-				zap.String("op", "save conn"),
-				zap.String("file", c.Conn.Filename),
-			)
-		}
 	}
 	<-doneCh
 }
