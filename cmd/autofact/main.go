@@ -187,19 +187,23 @@ func main() {
 		go c.HealthbeatLocal(doneCh)
 		c.CPUUtilization = c.CPUUtilizationLocal
 		c.MemInfo = c.MemInfoLocal
+		c.NetUsage = c.NetUsageLocal
 	} else {
 		// assign the
 		c.LoadAvg = LoadAvgFB
 		c.CPUUtilization = c.CPUUtilizationFB
 		c.MemInfo = c.MemInfoFB
+		c.NetUsage = c.NetUsageFB
+
+		// start the listener
 		go c.Listen(doneCh)
-		go c.NetUsage(doneCh)
-		// start the connection handler
+		// start the message writer
 		go c.MessageWriter(doneCh)
 	}
 
 	go c.CPUUtilization(doneCh)
 	go c.MemInfo(doneCh)
+	go c.NetUsage(doneCh)
 
 	<-doneCh
 }

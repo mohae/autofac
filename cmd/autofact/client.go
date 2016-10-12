@@ -14,6 +14,7 @@ import (
 	"github.com/mohae/autofact/message"
 	cpuutil "github.com/mohae/joefriday/cpu/utilization"
 	cpuutilf "github.com/mohae/joefriday/cpu/utilization/flat"
+	net "github.com/mohae/joefriday/net/usage"
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	load "github.com/mohae/joefriday/sysinfo/load"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
@@ -52,6 +53,7 @@ type Client struct {
 	LoadAvg        func() ([]byte, error)
 	CPUUtilization func(chan struct{})
 	MemInfo        func(chan struct{})
+	NetUsage       func(chan struct{})
 }
 
 func NewClient(c conf.Conn, fname string) *Client {
@@ -515,7 +517,9 @@ func (c *Client) MemInfoLocal(doneCh chan struct{}) {
 	}
 }
 
-func (c *Client) NetUsage(doneCh chan struct{}) {
+// NetUsageFB gets the netusage data on a ticker and queues the serialized data
+// on the send buffer.
+func (c *Client) NetUsageFB(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Collect.NetUsagePeriod.Int64() == 0 {
 		return
@@ -536,7 +540,7 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 	defer netTickr.Stop()
 	for {
 		select {
-		case data, ok := <-netTickr.Data:
+		case v, ok := <-netTickr.Data:
 			if !ok {
 				log.Error(
 					"ticker closed",
@@ -544,7 +548,50 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 				)
 				return
 			}
-			c.sendB <- c.NewMessage(message.NetUsage, data)
+			c.sendB <- c.NewMessage(message.NetUsage, v)
+		case <-doneCh:
+			return
+		}
+	}
+}
+
+// NetUsageLocal gets the netusage data on a ticker and outputs it to the local
+// destination as JSON.
+func (c *Client) NetUsageLocal(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Collect.NetUsagePeriod.Int64() == 0 {
+		return
+	}
+	// ticker for network usage data
+	netTicker, err := net.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "netusage"),
+		)
+		return
+	}
+	netTickr := netTicker.(*net.Ticker)
+	// make sure the resources get cleaned up
+	defer netTickr.Close()
+	defer netTickr.Stop()
+	for {
+		select {
+		case v, ok := <-netTickr.Data:
+			if !ok {
+				log.Error(
+					"ticker closed",
+					zap.String("type", "netusage"),
+				)
+				return
+			}
+			// log the data
+			data.Warn(
+				"netusage",
+				czap.Int64("TimeDelta", v.TimeDelta),
+				czap.Object("Interfaces", v.Interfaces),
+			)
 		case <-doneCh:
 			return
 		}
@@ -596,12 +643,13 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conn.ID), err)
 				return
-			} // log the data
+			}
+			// log the data
 			loadOut.Warn(
 				"loadavg",
-				czap.Float64("one", l.One),
-				czap.Float64("five", l.Five),
-				czap.Float64("fifteen", l.Fifteen),
+				czap.Float64("One", l.One),
+				czap.Float64("Five", l.Five),
+				czap.Float64("Fifteen", l.Fifteen),
 			)
 		case <-done:
 			return
