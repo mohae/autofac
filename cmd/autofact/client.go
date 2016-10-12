@@ -12,7 +12,8 @@ import (
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
-	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
+	cpuutil "github.com/mohae/joefriday/cpu/utilization"
+	cpuutilf "github.com/mohae/joefriday/cpu/utilization/flat"
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	load "github.com/mohae/joefriday/sysinfo/load"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
@@ -346,7 +347,47 @@ func (c *Client) IsConnected() bool {
 	return c.isConnected
 }
 
+// CPUUtilization gets the CPU Utilization data on a ticker and queues the
+// serialized data on the send buffer.
 func (c *Client) CPUUtilization(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Collect.CPUUtilizationPeriod.Int64() == 0 {
+		return
+	}
+	// ticker for cpu utilization data
+	cpuTicker, err := cpuutilf.NewTicker(time.Duration(c.Collect.CPUUtilizationPeriod.Int64()))
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "cpuutilization"),
+		)
+		return
+	}
+	cpuTickr := cpuTicker.(*cpuutilf.Ticker)
+	// make sure the resources get cleaned up
+	defer cpuTickr.Close()
+	defer cpuTickr.Stop()
+	for {
+		select {
+		case data, ok := <-cpuTickr.Data:
+			if !ok {
+				log.Error(
+					"ticker closed",
+					zap.String("type", "cpuutilization"),
+				)
+				return
+			}
+			c.sendB <- c.NewMessage(message.CPUUtilization, data)
+		case <-doneCh:
+			return
+		}
+	}
+}
+
+// CPUUtilizationLocal gets the CPU Utilization data on a ticker and outputs
+// it to the local destination as JSON.
+func (c *Client) CPUUtilizationLocal(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Collect.CPUUtilizationPeriod.Int64() == 0 {
 		return
@@ -367,7 +408,7 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 	defer cpuTickr.Stop()
 	for {
 		select {
-		case data, ok := <-cpuTickr.Data:
+		case v, ok := <-cpuTickr.Data:
 			if !ok {
 				log.Error(
 					"ticker closed",
@@ -375,7 +416,14 @@ func (c *Client) CPUUtilization(doneCh chan struct{}) {
 				)
 				return
 			}
-			c.sendB <- c.NewMessage(message.CPUUtilization, data)
+			data.Warn(
+				"cpuutil",
+				czap.Int64("TimeDelta", v.TimeDelta),
+				czap.Int("BTimeDelta", int(v.BTimeDelta)),
+				czap.Int64("CtxtDelta", v.CtxtDelta),
+				czap.Int("Processes", int(v.Processes)),
+				czap.Object("CPU", v.CPU),
+			)
 		case <-doneCh:
 			return
 		}

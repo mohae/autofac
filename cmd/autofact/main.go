@@ -185,16 +185,18 @@ func main() {
 	if serverless {
 		// since there isn't a server pull for healthbeat, a local ticker is started
 		go c.HealthbeatLocal(doneCh)
+		go c.CPUUtilizationLocal(doneCh)
 	} else {
 		// assign the
 		c.LoadAvg = LoadAvgFB
+		go c.CPUUtilization(doneCh)
 		go c.Listen(doneCh)
 		go c.MemInfo(doneCh)
-		go c.CPUUtilization(doneCh)
 		go c.NetUsage(doneCh)
 		// start the connection handler
 		go c.MessageWriter(doneCh)
 	}
+
 	<-doneCh
 }
 
