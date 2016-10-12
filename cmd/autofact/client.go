@@ -17,6 +17,7 @@ import (
 	netf "github.com/mohae/joefriday/net/usage/flat"
 	load "github.com/mohae/joefriday/sysinfo/load"
 	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
+	mem "github.com/mohae/joefriday/sysinfo/mem"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
 	czap "github.com/mohae/zap"
@@ -430,6 +431,8 @@ func (c *Client) CPUUtilizationLocal(doneCh chan struct{}) {
 	}
 }
 
+// MemInfo gets the meminfo data on a ticker and queues the serialized data on
+// the send buffer.
 func (c *Client) MemInfo(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Collect.MemInfoPeriod.Int64() == 0 {
@@ -459,6 +462,51 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 				return
 			}
 			c.sendB <- c.NewMessage(message.MemInfo, data)
+		case <-doneCh:
+			return
+		}
+	}
+}
+
+// MemInfoLocal gets the meminfo data on a ticker and outputs it to the local
+// destination as JSON.
+func (c *Client) MemInfoLocal(doneCh chan struct{}) {
+	// An interval of 0 means don't collect meminfo
+	if c.Collect.MemInfoPeriod.Int64() == 0 {
+		return
+	}
+	// ticker for meminfo data
+	memTicker, err := mem.NewTicker(time.Duration(c.Collect.MemInfoPeriod.Int64()))
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "create ticker"),
+			zap.String("type", "meminfo"),
+		)
+		return
+	}
+	memTickr := memTicker.(*mem.Ticker)
+	defer memTickr.Close()
+	defer memTickr.Stop()
+	for {
+		select {
+		case v, ok := <-memTickr.Data:
+			if !ok {
+				log.Error(
+					"ticker closed",
+					zap.String("type", "meminfo"),
+				)
+				return
+			}
+			data.Warn(
+				"meminfo",
+				czap.Uint64("TotalRAM", v.TotalRAM),
+				czap.Uint64("FreeRAM", v.FreeRAM),
+				czap.Uint64("SharedRAM", v.SharedRAM),
+				czap.Uint64("BufferRAM", v.BufferRAM),
+				czap.Uint64("TotalSwap", v.TotalSwap),
+				czap.Uint64("FreeSwap", v.FreeSwap),
+			)
 		case <-doneCh:
 			return
 		}
