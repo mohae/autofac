@@ -49,7 +49,9 @@ type Client struct {
 	idGen       snoflinga.Generator
 	// The func is assigned on creation as the implementation could change
 	// depending on where the output is directed and/or requested format.
-	LoadAvg func() ([]byte, error)
+	LoadAvg        func() ([]byte, error)
+	CPUUtilization func(chan struct{})
+	MemInfo        func(chan struct{})
 }
 
 func NewClient(c conf.Conn, fname string) *Client {
@@ -348,9 +350,9 @@ func (c *Client) IsConnected() bool {
 	return c.isConnected
 }
 
-// CPUUtilization gets the CPU Utilization data on a ticker and queues the
+// CPUUtilizationFB gets the CPU Utilization data on a ticker and queues the
 // serialized data on the send buffer.
-func (c *Client) CPUUtilization(doneCh chan struct{}) {
+func (c *Client) CPUUtilizationFB(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Collect.CPUUtilizationPeriod.Int64() == 0 {
 		return
@@ -431,9 +433,9 @@ func (c *Client) CPUUtilizationLocal(doneCh chan struct{}) {
 	}
 }
 
-// MemInfo gets the meminfo data on a ticker and queues the serialized data on
+// MemInfoFB gets the meminfo data on a ticker and queues the serialized data on
 // the send buffer.
-func (c *Client) MemInfo(doneCh chan struct{}) {
+func (c *Client) MemInfoFB(doneCh chan struct{}) {
 	// An interval of 0 means don't collect meminfo
 	if c.Collect.MemInfoPeriod.Int64() == 0 {
 		return
