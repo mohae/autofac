@@ -375,7 +375,7 @@ func (c *Client) CPUUtilizationFB(doneCh chan struct{}) {
 	defer cpuTickr.Stop()
 	for {
 		select {
-		case data, ok := <-cpuTickr.Data:
+		case v, ok := <-cpuTickr.Data:
 			if !ok {
 				log.Error(
 					"ticker closed",
@@ -383,7 +383,7 @@ func (c *Client) CPUUtilizationFB(doneCh chan struct{}) {
 				)
 				return
 			}
-			c.sendB <- c.NewMessage(message.CPUUtilization, data)
+			c.sendB <- c.NewMessage(message.CPUUtilization, v)
 		case <-doneCh:
 			return
 		}
@@ -457,7 +457,7 @@ func (c *Client) MemInfoFB(doneCh chan struct{}) {
 	defer memTickr.Stop()
 	for {
 		select {
-		case data, ok := <-memTickr.Data:
+		case v, ok := <-memTickr.Data:
 			if !ok {
 				log.Error(
 					"ticker closed",
@@ -465,7 +465,7 @@ func (c *Client) MemInfoFB(doneCh chan struct{}) {
 				)
 				return
 			}
-			c.sendB <- c.NewMessage(message.MemInfo, data)
+			c.sendB <- c.NewMessage(message.MemInfo, v)
 		case <-doneCh:
 			return
 		}
