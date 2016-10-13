@@ -125,15 +125,16 @@ type Collect struct {
 }
 
 // Load loads the Collect configuration from the specified file.
-func (c *Collect) Load(file string) error {
-	b, err := ioutil.ReadFile(file)
+func (c *Collect) Load(name string) error {
+	b, err := ioutil.ReadFile(name)
 	if err != nil {
 		return err
 	}
 	err = json.Unmarshal(b, c)
 	if err != nil {
-		return fmt.Errorf("error unmarshaling client conf file %s: %s", file, err)
+		return fmt.Errorf("%s unmarshal error: %s", name, err)
 	}
+	c.Filename = name
 	return nil
 }
 
@@ -146,14 +147,14 @@ func (c *Collect) UseDefaults() {
 	c.NetUsagePeriod = DefaultNetUsagePeriod
 }
 
-func (c *Collect) SaveAsJSON(fname string) error {
+func (c *Collect) SaveJSON() error {
 	b, err := json.MarshalIndent(c, "", "\t")
 	if err != nil {
-		return fmt.Errorf("error marshaling Collect to JSON: %s", err)
+		return fmt.Errorf("%s marshal error: %s", c.Filename, err)
 	}
-	err = ioutil.WriteFile(fname, b, 0600)
+	err = ioutil.WriteFile(c.Filename, b, 0600)
 	if err != nil {
-		return fmt.Errorf("Collect save error: %s", err)
+		return fmt.Errorf("%s save error: %s", c.Filename, err)
 	}
 	return nil
 }

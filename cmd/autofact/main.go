@@ -131,7 +131,7 @@ func main() {
 				zap.String("conf", "using default collect settings"),
 			)
 			c.Collect.UseDefaults()
-			err = c.Collect.SaveAsJSON(collectFile)
+			err = c.Collect.SaveJSON()
 			if err != nil {
 				log.Warn(
 					err.Error(),
