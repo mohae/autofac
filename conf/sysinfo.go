@@ -75,8 +75,8 @@ func (s *SysInfo) Serialize() []byte {
 // Deserialize deserializes flatbuffer serializes bytes into SysInfo.
 func (s *SysInfo) Deserialize(p []byte) {
 	inf := GetRootAsSysInf(p, 0)
-	s.CPU = inf.CPU()
-	s.CPUFlags = inf.CPUFlags()
-	s.Mem = inf.Mem()
-	s.NetInf = inf.NetInf()
+	s.CPU = util.ByteToBool(inf.CPU())
+	s.CPUFlags = util.ByteToBool(inf.CPUFlags())
+	s.Mem = util.ByteToBool(inf.Mem())
+	s.NetInf = util.ByteToBool(inf.NetInf())
 }
