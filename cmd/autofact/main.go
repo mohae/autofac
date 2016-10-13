@@ -40,12 +40,12 @@ var (
 var (
 	log      zap.Logger // application log
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
-	logDest  string
-	logOut   *os.File
+	logOut   string
+	logFile  *os.File
 
 	data     czap.Logger // use mohae's fork to support level description override
-	dataDest string
-	dataOut  *os.File
+	dataOut  string
+	dataFile *os.File
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
@@ -57,10 +57,10 @@ func init() {
 	flag.StringVar(&connConf.ServerAddress, aVar, "127.0.0.1", "the server address (short)")
 	flag.StringVar(&connConf.ServerPort, portVar, "8675", "the connection port")
 	flag.StringVar(&connConf.ServerPort, pVar, "8675", "the connection port (short)")
-	flag.StringVar(&logDest, "logdestination", "stderr", "log output destination; if empty stderr will be used")
-	flag.StringVar(&logDest, "l", "stderr", "log output; if empty stderr will be used")
-	flag.StringVar(&dataDest, "datadestination", "stdout", "serverless mode data output destination, if empty stderr will be used")
-	flag.StringVar(&dataDest, "d", "stdout", "serverless mode data output destination, if empty stderr will be used")
+	flag.StringVar(&logOut, "logout", "stderr", "log output; if empty stderr will be used")
+	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
+	flag.StringVar(&dataOut, "dataout", "stdout", "serverless mode data output, if empty stderr will be used")
+	flag.StringVar(&dataOut, "d", "stdout", "serverless mode data output, if empty stderr will be used")
 	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
@@ -211,15 +211,15 @@ func main() {
 func SetLogging() {
 	// if logfile is empty, use Stderr
 	var err error
-	if logDest == "" || logDest == "stderr" {
-		logOut = os.Stderr
+	if logOut == "" || logOut == "stderr" {
+		logFile = os.Stderr
 		goto newLog
 	}
-	if logDest == "stdout" {
-		logOut = os.Stdout
+	if logOut == "stdout" {
+		logFile = os.Stdout
 		goto newLog
 	}
-	logOut, err = os.OpenFile(logDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	logFile, err = os.OpenFile(logOut, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 	if err != nil {
 		panic(err)
 	}
@@ -228,27 +228,27 @@ newLog:
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),
 		),
-		zap.Output(logOut),
+		zap.Output(logFile),
 	)
 	log.SetLevel(*loglevel)
 }
 
 func SetDataOut() {
 	var err error
-	if dataDest == "" || dataDest == "stdout" {
-		dataOut = os.Stdout
+	if dataOut == "" || dataOut == "stdout" {
+		dataFile = os.Stdout
 		goto newData
 	}
-	if dataDest == "stderr" {
-		dataOut = os.Stderr
+	if dataOut == "stderr" {
+		dataFile = os.Stderr
 		goto newData
 	}
-	dataOut, err = os.OpenFile(dataDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	dataFile, err = os.OpenFile(dataOut, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 	if err != nil {
 		log.Fatal(
 			err.Error(),
 			zap.String("op", "open datafile"),
-			zap.String("filename", dataDest),
+			zap.String("filename", dataOut),
 		)
 	}
 newData:
@@ -256,19 +256,19 @@ newData:
 		czap.NewJSONEncoder(
 			czap.RFC3339Formatter("ts"),
 		),
-		czap.Output(dataOut),
+		czap.Output(dataFile),
 	)
 	data.SetLevel(czap.WarnLevel)
 }
 
 // CloseOut closes the local output destinations before shutdown.
 func CloseOut() {
-	if logOut != nil {
-		logOut.Close()
+	if logFile != nil {
+		logFile.Close()
 	}
 	// If running serverless, close the data file.
 	if serverless {
-		dataOut.Close()
+		dataFile.Close()
 	}
 }
 
