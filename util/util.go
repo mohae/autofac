@@ -130,3 +130,21 @@ func WSString(t int) string {
 		return "UnknownMessage"
 	}
 }
+
+// ByteToBool returns the bool equivalent of a byte.  Flatbuffers aliases bool
+// to byte.
+func Uint8ToBool(v byte) bool {
+	if v == 0x00 {
+		return false
+	}
+	return true
+}
+
+// BoolToByte returns the byte equivalent of a bool.  Flatbuffers aliases bool
+// to byte.
+func BoolToUint8(b bool) byte {
+	if b {
+		return 0x01
+	}
+	return 0x00
+}
