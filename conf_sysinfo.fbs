@@ -1,0 +1,11 @@
+// conf_sysinfo.fbs
+namespace conf;
+
+table SysInf {
+	CPU:bool;
+	CPUFlags:bool;
+	Mem:bool;
+	NetInf:bool;
+}
+
+root_type SysInf;
