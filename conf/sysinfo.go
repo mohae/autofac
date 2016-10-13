@@ -5,13 +5,16 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
+
+	"github.com/google/flatbuffers/go"
+	"github.com/mohae/autofact/util"
 )
 
 // SysInfo holds the configuration information for what system information
 // should be collected on either node startup, serverless, or when a node
 // connects to the server.
 var SysInfFile = "autoinf.json"
-var SysInf bool
+var GetSysInfo bool
 
 func init() {
 	flag.StringVar(&SysInfFile, "sysinfconf", SysInfFile, "")
@@ -55,4 +58,25 @@ func (s *SysInfo) UseDefaults() {
 	s.CPUFlags = true
 	s.Mem = true
 	s.NetInf = true
+}
+
+// Serialize serializes Sysinfo as SysInf using flatbuffers.
+func (s *SysInfo) Serialize() []byte {
+	bldr := flatbuffers.NewBuilder(0)
+	SysInfStart(bldr)
+	SysInfAddCPU(bldr, util.BoolToByte(s.CPU))
+	SysInfAddCPUFlags(bldr, util.BoolToByte(s.CPUFlags))
+	SysInfAddMem(bldr, util.BoolToByte(s.Mem))
+	SysInfAddNetInf(bldr, util.BoolToByte(s.NetInf))
+	bldr.Finish(SysInfEnd(bldr))
+	return bldr.Bytes[bldr.Head():]
+}
+
+// Deserialize deserializes flatbuffer serializes bytes into SysInfo.
+func (s *SysInfo) Deserialize(p []byte) {
+	inf := GetRootAsSysInf(p, 0)
+	s.CPU = inf.CPU()
+	s.CPUFlags = inf.CPUFlags()
+	s.Mem = inf.Mem()
+	s.NetInf = inf.NetInf()
 }
