@@ -126,7 +126,7 @@ func realMain() int {
 			zap.String("file", clientConfFile),
 		)
 		// write this out to the app dir
-		srvr.Collect.UseAppDefaults()
+		srvr.Collect.UseDefaults()
 		err = srvr.Collect.SaveAsJSON(clientConfFile)
 		if err != nil { // a save error isn't fatal
 			log.Error(
