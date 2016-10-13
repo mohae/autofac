@@ -13,11 +13,12 @@ import (
 // SysInfo holds the configuration information for what system information
 // should be collected on either node startup, serverless, or when a node
 // connects to the server.
-var SysInfFile = "autoinf.json"
+var SysInfoFile string
 var GetSysInfo bool
 
 func init() {
-	flag.StringVar(&SysInfFile, "sysinfconf", SysInfFile, "")
+	flag.StringVar(&SysInfoFile, "sysinfoout", "stdout", "sysinfo output destination")
+	flag.BoolVar(&GetSysInfo, "sysinfo", false, "collect the client's system information")
 }
 
 type SysInfo struct {
