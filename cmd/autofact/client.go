@@ -139,7 +139,7 @@ handshake:
 					c.Collect.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
 					c.Collect.MemInfoPeriod.Set(cnf.MemInfoPeriod())
 					c.Collect.NetUsagePeriod.Set(cnf.NetUsagePeriod())
-					err := c.Collect.SaveAsJSON(c.Collect.Filename)
+					err = c.Collect.SaveJSON()
 					if err != nil {
 						log.Error(
 							err.Error(),

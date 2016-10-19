@@ -150,7 +150,10 @@ func main() {
 	// Set up the output destination.
 	if serverless { // open the datafile to use
 		SetDataOut()
-	} else { // connect to the server
+		WriteSystemInfo()
+	}
+
+	if !serverless { // connect to the server
 		// connect to the Server
 		c.ServerURL = url.URL{Scheme: "ws", Host: fmt.Sprintf("%s:%s", c.ServerAddress, c.ServerPort), Path: "/client"}
 
