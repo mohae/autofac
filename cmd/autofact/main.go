@@ -32,8 +32,8 @@ var (
 	connConf conf.Conn
 
 	// client configuration: used for serverless
-
 	serverless bool
+	startInfo  bool
 )
 
 // Vars for logging and local data output, if applicable.
@@ -62,6 +62,7 @@ func init() {
 	flag.StringVar(&dataOut, "dataout", "stdout", "serverless mode data output, if empty stderr will be used")
 	flag.StringVar(&dataOut, "d", "stdout", "serverless mode data output, if empty stderr will be used")
 	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
+	flag.BoolVar(&startInfo, "startinfo", false, "when operating serverless the client's system info will be collected on app start")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 
@@ -150,7 +151,9 @@ func main() {
 	// Set up the output destination.
 	if serverless { // open the datafile to use
 		SetDataOut()
-		WriteSystemInfo()
+		if startInfo { // if system info is collected on startup...
+			WriteSystemInfo()
+		}
 	}
 
 	if !serverless { // connect to the server
