@@ -178,14 +178,14 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				log.Error(
 					err.Error(),
 					zap.String("op", "read message"),
-					zap.String("id", string(c.Conf.IDBytes())),
+					zap.String("client", string(c.Conf.IDBytes())),
 				)
 				return
 			}
 			log.Info(
 				err.Error(),
 				zap.String("op", "read message"),
-				zap.String("id", string(c.Conf.IDBytes())),
+				zap.String("client", string(c.Conf.IDBytes())),
 			)
 
 			fmt.Println("client closed connection...waiting for reconnect")
@@ -198,6 +198,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			log.Warn(
 				string(p),
 				zap.String("op", "receive message"),
+				zap.String("client", string(c.Conf.IDBytes()))
 				zap.String("type", util.WSString(typ)),
 			)
 
@@ -207,8 +208,8 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			log.Info(
 				string(p),
 				zap.String("op", "client closed connection"),
+				zap.String("client", string(c.Conf.IDBytes())),
 				zap.String("type", util.WSString(typ)),
-				zap.String("id", string(c.Conf.IDBytes())),
 			)
 			return
 		}
