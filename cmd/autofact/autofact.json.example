@@ -6,7 +6,7 @@
 	"connect_interval": "5s",
 	"connect_period": "15m",
 	"healthbeat_period": "10s",
-	"cpuutilization_period": "1m",
-	"meminfo_period": "1m0s",
-	"netusage_period": "5m0s",
+	"cpuutilization_period": "15s",
+	"meminfo_period": "15s",
+	"netusage_period": "15s",
 }
