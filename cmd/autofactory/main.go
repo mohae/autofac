@@ -94,7 +94,6 @@ func realMain() int {
 		return 1
 	}
 
-	clientConfFile = filepath.Join(autofactoryPath, clientConfFile)
 	srvr.BoltDBFile = filepath.Join(autofactoryPath, srvr.BoltDBFile)
 
 	flag.Parse()
@@ -105,11 +104,11 @@ func realMain() int {
 
 	srvr.ID = []byte(serverID)
 	srvr.NewSnowflakeGenerator()
-	srvr.Path = autofactoryPath
+	srvr.AutoPath = autofactoryPath
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
 	// client, or group, or role, or pod, etc.
-	err = srvr.Collect.Load(clientConfFile)
+	err = srvr.Collect.Load(srvr.AutoPath, clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			log.Error(
@@ -127,7 +126,8 @@ func realMain() int {
 		)
 		// write this out to the app dir
 		srvr.Collect.UseDefaults()
-		err = srvr.Collect.SaveJSON()
+		fmt.Println(autofactoryPath, srvr.Collect.Filename)
+		err = srvr.Collect.SaveJSON(srvr.AutoPath)
 		if err != nil { // a save error isn't fatal
 			log.Error(
 				err.Error(),

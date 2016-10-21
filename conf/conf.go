@@ -126,16 +126,16 @@ type Collect struct {
 }
 
 // Load loads the Collect configuration from the specified file.
-func (c *Collect) Load(name string) error {
-	b, err := ioutil.ReadFile(name)
+func (c *Collect) Load(dir, name string) error {
+	c.Filename = name
+	b, err := ioutil.ReadFile(filepath.Join(dir, name))
 	if err != nil {
 		return err
 	}
 	err = json.Unmarshal(b, c)
 	if err != nil {
-		return fmt.Errorf("%s unmarshal error: %s", name, err)
+		return fmt.Errorf("%s unmarshal error: %s", filepath.Join(dir, name), err)
 	}
-	c.Filename = name
 	return nil
 }
 
