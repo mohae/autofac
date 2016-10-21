@@ -56,10 +56,10 @@ type Client struct {
 	NetUsage       func(chan struct{})
 }
 
-func NewClient(c conf.Conn, fname string) *Client {
+func NewClient(c conf.Conn) *Client {
 	return &Client{
 		Conn:    c,
-		Collect: conf.Collect{Filename: fname},
+		Collect: conf.Collect{},
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.

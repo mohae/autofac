@@ -110,13 +110,12 @@ func main() {
 	// TODO add env var support
 
 	// get a client
-	c := NewClient(connConf, collectFile)
+	c := NewClient(connConf)
 	c.AutoPath = autofactPath
 
 	// if serverless: load the collection configuration
 	if serverless {
-		collectFile = filepath.Join(autofactPath, collectFile)
-		err = c.Collect.Load(collectFile)
+		err = c.Collect.Load(c.AutoPath, collectFile)
 		if err != nil {
 			log.Warn(
 				err.Error(),
