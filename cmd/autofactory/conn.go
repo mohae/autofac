@@ -119,9 +119,9 @@ sendInf:
 	// the client needs the current connection
 	c.WS = conn
 	// send the inf
-	srvr.WriteBinaryMessage(c.WS, message.ClientConf, b)
+	srvr.WriteBinaryMessage(string(c.Conf.IDBytes()), c.WS, message.ClientConf, b)
 	// send EOM
-	srvr.WriteBinaryMessage(c.WS, message.EOT, nil)
+	srvr.WriteBinaryMessage(string(c.Conf.IDBytes()), c.WS, message.EOT, nil)
 	// start a message handler for the client
 	doneCh := make(chan struct{})
 	go c.Listen(doneCh)

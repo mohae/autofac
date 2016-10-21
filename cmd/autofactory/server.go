@@ -145,8 +145,17 @@ func (s *server) newClient(id []byte) *Client {
 
 // WriteBinaryMessage serializes a message and writes it to the socket as
 // a binary message.
-func (s *server) WriteBinaryMessage(conn *websocket.Conn, k message.Kind, p []byte) {
-	conn.WriteMessage(websocket.BinaryMessage, message.Serialize(s.idGen.Snowflake(), k, p))
+func (s *server) WriteBinaryMessage(client string, conn *websocket.Conn, k message.Kind, p []byte) {
+	err := conn.WriteMessage(websocket.BinaryMessage, message.Serialize(s.idGen.Snowflake(), k, p))
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "write binary message"),
+			zap.String("client", client),
+			zap.String("kind", k.String()),
+			zap.Base64("message", p),
+		)
+	}
 }
 
 // Client holds information about a client.
