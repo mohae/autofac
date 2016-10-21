@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/google/flatbuffers/go"
@@ -147,14 +148,14 @@ func (c *Collect) UseDefaults() {
 	c.NetUsagePeriod = DefaultNetUsagePeriod
 }
 
-func (c *Collect) SaveJSON() error {
+func (c *Collect) SaveJSON(dir string) error {
 	b, err := json.MarshalIndent(c, "", "\t")
 	if err != nil {
 		return fmt.Errorf("%s marshal error: %s", c.Filename, err)
 	}
-	err = ioutil.WriteFile(c.Filename, b, 0600)
+	err = ioutil.WriteFile(filepath.Join(dir, c.Filename), b, 0600)
 	if err != nil {
-		return fmt.Errorf("%s save error: %s", c.Filename, err)
+		return fmt.Errorf("%s save error: %s", filepath.Join(dir, c.Filename), err)
 	}
 	return nil
 }

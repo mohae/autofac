@@ -90,14 +90,7 @@ func main() {
 	connFile = filepath.Join(autofactPath, connFile)
 
 	// process the settings: this gets read first just in case flags override
-	var connMsg string
 	err = connConf.Load(connFile)
-	if err != nil {
-		// capture the error for logging once it is setup and continue.  An error
-		// is not a show stopper as the file may not exist if this is the first
-		// time autofact has run on this node.
-		connMsg = fmt.Sprintf("using default connection settings")
-	}
 
 	// Parse the flags.
 	flag.Parse()
@@ -107,11 +100,10 @@ func main() {
 	defer CloseOut()
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
-	if connMsg != "" && !serverless {
+	if err != nil && !serverless {
 		log.Warn(
 			err.Error(),
-			zap.String("op", fmt.Sprintf("load %s", connFile)),
-			zap.String("conf", connMsg),
+			zap.String("op", "use default connect settings"),
 		)
 	}
 
@@ -128,11 +120,10 @@ func main() {
 		if err != nil {
 			log.Warn(
 				err.Error(),
-				zap.String("op", fmt.Sprintf("load %s", collectFile)),
-				zap.String("conf", "using default collect settings"),
+				zap.String("op", "use default collect settings"),
 			)
 			c.Collect.UseDefaults()
-			err = c.Collect.SaveJSON()
+			err = c.Collect.SaveJSON(c.AutoPath)
 			if err != nil {
 				log.Warn(
 					err.Error(),
