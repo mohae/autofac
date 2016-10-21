@@ -187,8 +187,11 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				zap.String("op", "read message"),
 				zap.String("client", string(c.Conf.IDBytes())),
 			)
-
-			fmt.Println("client closed connection...waiting for reconnect")
+			log.Warn(
+				"client closed connection...waiting for reconnect",
+				zap.String("op", "read message"),
+				zap.String("client", string(c.Conf.IDBytes())),
+			)
 			return
 		}
 		switch typ {
@@ -198,7 +201,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 			log.Warn(
 				string(p),
 				zap.String("op", "receive message"),
-				zap.String("client", string(c.Conf.IDBytes()))
+				zap.String("client", string(c.Conf.IDBytes())),
 				zap.String("type", util.WSString(typ)),
 			)
 
