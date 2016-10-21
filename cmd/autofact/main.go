@@ -241,11 +241,13 @@ func SetDataOut() {
 	}
 	dataFile, err = os.OpenFile(dataOut, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 	if err != nil {
-		log.Fatal(
+		log.Error(
 			err.Error(),
 			zap.String("op", "open datafile"),
 			zap.String("filename", dataOut),
 		)
+		CloseOut()
+		os.Exit(1)
 	}
 newData:
 	data = czap.New(
