@@ -8,12 +8,6 @@ import (
 	"github.com/uber-go/zap"
 )
 
-// series holds a series of data points for Influx.
-type Series struct {
-	Data []*client.Point
-	err  error
-}
-
 // newInfluxClient connects to the database with the passed info andd returns
 // the InfluxClient.  If an error occurs, that will be returned.
 func newInfluxClient(name, addr, user, password string) (*InfluxClient, error) {
@@ -28,7 +22,7 @@ func newInfluxClient(name, addr, user, password string) (*InfluxClient, error) {
 	return &InfluxClient{
 		DBName:   name,
 		Conn:     cl,
-		seriesCh: make(chan Series, 100),
+		pointsCh: make(chan []*influx.Point, 100),
 		doneCh:   make(chan struct{}),
 	}, nil
 }
@@ -39,7 +33,7 @@ type InfluxClient struct {
 	DBName    string
 	Conn      client.Client
 	Precision string
-	seriesCh  chan Series
+	pointsCh  chan []*influx.Point
 	doneCh    chan struct{}
 }
 
@@ -49,10 +43,10 @@ func (c *InfluxClient) Write() {
 	defer close(c.doneCh)
 	for {
 		select {
-		case series, ok := <-c.seriesCh:
+		case points, ok := <-c.pointsCh:
 			if !ok {
 				log.Error(
-					"series data channel is closed",
+					"influx points channel closed",
 					zap.String("db", "influxdb"),
 					zap.String("dbname", c.DBName),
 				)
@@ -82,8 +76,8 @@ func (c *InfluxClient) Write() {
 				)
 				continue
 			}
-			for _, v := range series.Data {
-				bp.AddPoint(v)
+			for _, p := range points {
+				bp.AddPoint(p)
 			}
 			err = c.Conn.Write(bp)
 			if err != nil {
