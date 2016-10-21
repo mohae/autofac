@@ -139,16 +139,6 @@ handshake:
 					c.Collect.CPUUtilizationPeriod.Set(cnf.CPUUtilizationPeriod())
 					c.Collect.MemInfoPeriod.Set(cnf.MemInfoPeriod())
 					c.Collect.NetUsagePeriod.Set(cnf.NetUsagePeriod())
-					err = c.Collect.SaveJSON(c.AutoPath)
-					if err != nil {
-						log.Error(
-							err.Error(),
-							zap.String("op", "save config"),
-							zap.String("file", c.Collect.Filename),
-						)
-						c.WS.Close()
-						return false
-					}
 				}
 			case message.EOT:
 				break handshake
