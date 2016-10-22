@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/mohae/autofact/conf"
+	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
 
@@ -41,14 +42,21 @@ var (
 	logOut   string
 	logFile  *os.File
 
-	// The default directory used by Autofactory for app data.
-	autofactoryPath    = "$HOME/.autofactory"
-	autofactoryEnvName = "AUTOFACTORY_PATH"
+	// Data; if data destination == file
+	data     czap.Logger // use mohae's fork to support level description override
+	dataOut  string
+	dataFile *os.File
+	dataDest string
 
+	// if data destination == influxdb
 	serverID       string
 	clientConfFile string
 	influxUser     string
 	influxPassword string
+
+	// The default directory used by Autofactory for app data.
+	autofactoryPath    = "$HOME/.autofactory"
+	autofactoryEnvName = "AUTOFACTORY_PATH"
 )
 
 // flags
@@ -71,6 +79,8 @@ func init() {
 	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
 	flag.StringVar(&logOut, "logout", "stderr", "log output; if empty stderr will be used")
 	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
+	flag.StringVar(&dataOut, "dataout", "stdout", "data output location for when the data destination is file, if empty stdout will be used")
+	flag.StringVar(&dataDest, "datadestination", "file", "the destination for collected data: file or influxdb")
 }
 
 func main() {
@@ -107,7 +117,8 @@ func realMain() int {
 	srvr.AutoPath = autofactoryPath
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
-	// client, or group, or role, or pod, etc.
+	// client, or group, or role, or pod, etc.  Or should this be a custom list
+	// of attributes that can be created?
 	err = srvr.Collect.Load(srvr.AutoPath, clientConfFile)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -148,22 +159,26 @@ func realMain() int {
 	}
 	defer srvr.Bolt.Close()
 
-	// connect to Influx
-	// TODO make this optional; if Influx isn't going to be used, leverage
-	// zap to write the data to a structured log.
-	err = srvr.connectToInfluxDB(influxUser, influxPassword)
-	if err != nil {
-		log.Error(
-			err.Error(),
-			zap.String("op", "connect to influxdb"),
-			zap.String("db", srvr.InfluxDBName),
-		)
+	// Check data destination and handle accordingly
+	switch dataDest {
+	case "file":
+		err = SetDataOut()
+		if err != nil { // don't do anything with error, func already handled logging.
+			return 1
+		}
+
+	case "influxdb":
+		err = ConnectToInflux()
+		if err != nil { // don't do anything with error, func already handled logging.
+			return 1
+		}
+
+	default:
+		fmt.Fprintf(os.Stderr, "fatal error: unsupported data destination %s", dataDest)
 		return 1
 	}
+
 	go handleSignals(&srvr)
-	// start the Influx writer
-	// TODO: influx writer should handle done channel signaling
-	go srvr.InfluxClient.Write()
 	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
 	err = http.ListenAndServe(fmt.Sprintf(":%s", connConf.ServerPort), nil)
@@ -223,4 +238,52 @@ func CloseLog() {
 	if logFile != nil {
 		logFile.Close()
 	}
+}
+
+func SetDataOut() error {
+	var err error
+	if dataOut == "" || dataOut == "stdout" {
+		dataFile = os.Stdout
+		goto newData
+	}
+	if dataOut == "stderr" {
+		dataFile = os.Stderr
+		goto newData
+	}
+	dataFile, err = os.OpenFile(dataOut, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "open datafile"),
+			zap.String("filename", dataOut),
+		)
+		return err
+	}
+newData:
+	data = czap.New(
+		czap.NewJSONEncoder(
+			czap.RFC3339Formatter("ts"),
+		),
+		czap.Output(dataFile),
+	)
+	data.SetLevel(czap.WarnLevel)
+	return nil
+}
+
+func ConnectToInflux() error {
+	// connect to Influx
+	err := srvr.connectToInfluxDB(influxUser, influxPassword)
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "connect to influxdb"),
+			zap.String("db", srvr.InfluxDBName),
+		)
+		return err
+	}
+	// start the Influx writer
+	// TODO: influx writer should handle done channel signaling
+	go srvr.InfluxClient.Write()
+
+	return nil
 }
