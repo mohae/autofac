@@ -110,7 +110,7 @@ func realMain() int {
 
 	// now that everything is parsed; set up logging
 	SetLogging()
-	defer CloseLog()
+	defer CloseOut()
 
 	srvr.ID = []byte(serverID)
 	srvr.NewSnowflakeGenerator()
@@ -157,7 +157,6 @@ func realMain() int {
 		)
 		return 1
 	}
-	defer srvr.Bolt.Close()
 
 	// Check data destination and handle accordingly
 	switch dataDest {
@@ -202,7 +201,7 @@ func handleSignals(srvr *server) {
 		zap.Object("signal", v),
 	)
 	srvr.Bolt.Close()
-	CloseLog()
+	CloseOut()
 	os.Exit(1)
 }
 
@@ -233,10 +232,18 @@ newLog:
 	log.SetLevel(*loglevel)
 }
 
-// CloseLog closes the log file
-func CloseLog() {
+// CloseOut closes the output files.  This should be called before any os.Exit.
+// Log.Fatal or Log.Panic, or anything else that doesn't allow defers to run
+// or allow one to log the error and close the output files.
+func CloseOut() {
 	if logFile != nil {
 		logFile.Close()
+	}
+	if dataFile != nil {
+		dataFile.Close()
+	}
+	if srvr.Bolt.DB != nil {
+		srvr.Bolt.Close()
 	}
 }
 

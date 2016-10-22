@@ -50,8 +50,7 @@ func (c *InfluxClient) Write() {
 					zap.String("db", "influxdb"),
 					zap.String("dbname", c.DBName),
 				)
-				srvr.Bolt.Close() // Close Bolt because defers don't run on os.Exit
-				CloseLog()        // Close log because defers don't run on os.Exit
+				CloseOut() // Close log because defers don't run on os.Exit
 				os.Exit(1)
 			}
 			// create the batchpoint from the data
