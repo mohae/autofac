@@ -38,8 +38,8 @@ var (
 	// Logging
 	log      zap.Logger
 	loglevel = zap.LevelFlag("loglevel", zap.WarnLevel, "log level")
-	logDest  string
-	logOut   *os.File
+	logOut   string
+	logFile  *os.File
 
 	// The default directory used by Autofactory for app data.
 	autofactoryPath    = "$HOME/.autofactory"
@@ -69,8 +69,8 @@ func init() {
 	flag.StringVar(&influxUser, uVar, "autoadmin", "the username of the InfluxDB user (short)")
 	flag.StringVar(&influxPassword, passwordVar, "thisisnotapassword", "the username of the InfluxDB user")
 	flag.StringVar(&influxPassword, pVar, "thisisnotapassword", "the username of the InfluxDB user (short)")
-	flag.StringVar(&logDest, "logdestination", "stderr", "log output destination; if empty stderr will be used")
-	flag.StringVar(&logDest, "l", "stderr", "log output; if empty stderr will be used")
+	flag.StringVar(&logOut, "logout", "stderr", "log output; if empty stderr will be used")
+	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
 }
 
 func main() {
@@ -194,16 +194,16 @@ func handleSignals(srvr *server) {
 func SetLogging() {
 	// if logfile is empty, use Stderr
 	var err error
-	if logDest == "" || logDest == "stderr" {
-		logOut = os.Stderr
+	if logOut == "" || logOut == "stderr" {
+		logFile = os.Stderr
 		goto newLog
 	}
-	if logDest == "stdout" {
-		logOut = os.Stdout
+	if logOut == "stdout" {
+		logFile = os.Stdout
 		goto newLog
 	}
 
-	logOut, err = os.OpenFile(logDest, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
+	logFile, err = os.OpenFile(logOut, os.O_CREATE|os.O_RDWR|os.O_APPEND, 0664)
 	if err != nil {
 		panic(err)
 	}
@@ -213,14 +213,14 @@ newLog:
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),
 		),
-		zap.Output(logOut),
+		zap.Output(logFile),
 	)
 	log.SetLevel(*loglevel)
 }
 
 // CloseLog closes the log file
 func CloseLog() {
-	if logOut != nil {
-		logOut.Close()
+	if logFile != nil {
+		logFile.Close()
 	}
 }
