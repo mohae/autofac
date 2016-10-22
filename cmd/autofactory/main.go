@@ -242,9 +242,7 @@ func CloseOut() {
 	if dataFile != nil {
 		dataFile.Close()
 	}
-	if srvr.Bolt.DB != nil {
-		srvr.Bolt.Close()
-	}
+	srvr.Bolt.Close()
 }
 
 func SetDataOut() error {

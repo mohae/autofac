@@ -50,6 +50,14 @@ func (b *Bolt) Open(name string) error {
 	return nil
 }
 
+// Close the database if it's open.
+func (b *Bolt) Close() error {
+	if b.DB != nil {
+		return b.DB.Close()
+	}
+	return nil
+}
+
 // CreateBuckets creates the buckets for margo.
 func (b *Bolt) CreateBuckets() error {
 	for _, v := range Buckets {
