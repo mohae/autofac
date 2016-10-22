@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/google/flatbuffers/go"
@@ -113,7 +112,6 @@ func (s *server) NewClient() (c *Client, err error) {
 	for {
 		// TODO replace with a rand bytes or striing
 		id := randchars.AlphaNum(util.IDLen)
-		fmt.Println(string(id))
 		if !s.Inventory.clientExists(id) {
 			c = s.newClient(id)
 			s.Inventory.clients[string(id)] = c.Conf
@@ -236,7 +234,11 @@ func (c *Client) Healthbeat(done chan struct{}) {
 			// request the Healthbeat; serveClient will handle the response.
 			err := c.WS.WriteMessage(websocket.TextMessage, autofact.LoadAvg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "%s: healthbeat error: %s", string(c.Conf.IDBytes()), err)
+				log.Error(
+					err.Error(),
+					zap.String("op", "health request"),
+					zap.String("client", string(c.Conf.IDBytes())),
+				)
 				return
 			} // add the data
 		case <-done:
@@ -259,7 +261,6 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		fmt.Printf("%s: cpu utilization\n", c.Conf.Hostname())
 		cpus := cpuutil.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		var bErr error // this is the last error in the batch, if any
 		// Each cpu is it's own point, make a slice to accommodate them all and process.
 		pts := make([]*influx.Point, 0, len(cpus.CPU))
 		for _, cpu := range cpus.CPU {
@@ -274,12 +275,21 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			}
 			pt, err := influx.NewPoint("cpus", tags, fields, time.Unix(0, cpus.Timestamp).UTC())
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "cpu utilization: create infulx.Point: %s: %s", cpu.ID, err)
-				bErr = err
+				log.Error(
+					err.Error(),
+					zap.String("op", "create point"),
+					zap.String("client", string(c.Conf.IDBytes())),
+					zap.String("stat", "cpu utilization"),
+					zap.String("cpu", cpu.ID),
+				)
+				continue
 			}
 			pts = append(pts, pt)
 		}
-		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
+		// only send if there were any points generated
+		if len(pts) != 0 {
+			c.InfluxClient.pointsCh <- pts
+		}
 	case message.LoadAvg:
 		fmt.Printf("%s: loadavg\n", c.Conf.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
@@ -290,7 +300,16 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"fifteen": l.Fifteen,
 		}
 		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
-		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "create point"),
+				zap.String("client", string(c.Conf.IDBytes())),
+				zap.String("stat", "loadavg"),
+			)
+		} else {
+			c.InfluxClient.pointsCh <- []*influx.Point{pt}
+		}
 	case message.MemInfo:
 		fmt.Printf("%s: meminfo\n", c.Conf.Hostname())
 		m := memf.Deserialize(msg.DataBytes())
@@ -304,12 +323,20 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"free_swap":  m.FreeSwap,
 		}
 		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
-		c.InfluxClient.seriesCh <- Series{Data: []*influx.Point{pt}, err: err}
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "create point"),
+				zap.String("client", string(c.Conf.IDBytes())),
+				zap.String("stat", "meminfo"),
+			)
+		} else {
+			c.InfluxClient.pointsCh <- []*influx.Point{pt}
+		}
 	case message.NetUsage:
 		fmt.Printf("%s: network usage\n", c.Conf.Hostname())
 		ifaces := netf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		var bErr error // the last error in the batch, if any
 		// Make a slice of points whose length is equal to the number of Interfaces
 		// and process the interfaces.
 		pts := make([]*influx.Point, 0, len(ifaces.Interfaces))
@@ -335,15 +362,29 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			}
 			pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, ifaces.Timestamp).UTC())
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "network interface usage: create influx.Point: %s: %s", iFace.Name, err)
-				bErr = err
+				log.Error(
+					err.Error(),
+					zap.String("op", "create point"),
+					zap.String("client", string(c.Conf.IDBytes())),
+					zap.String("stat", "netusage"),
+					zap.String("interface", string(iFace.Name)),
+				)
+				continue
 			}
 			pts = append(pts, pt)
 		}
-		c.InfluxClient.seriesCh <- Series{Data: pts, err: bErr}
+		// only send if there were any points generated
+		if len(pts) > 0 {
+			c.InfluxClient.pointsCh <- pts
+		}
 	default:
-		fmt.Println("unknown message kind")
-		fmt.Println(string(p))
+		log.Error(
+			"unsupported message kind",
+			zap.String("op", "process binary message"),
+			zap.String("client", string(c.Conf.IDBytes())),
+			zap.String("kind", k.String()),
+			zap.Base64("message", p),
+		)
 	}
 	return nil
 }

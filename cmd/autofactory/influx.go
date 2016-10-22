@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"os"
 
-	client "github.com/influxdata/influxdb/client/v2"
+	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/uber-go/zap"
 )
 
 // newInfluxClient connects to the database with the passed info andd returns
 // the InfluxClient.  If an error occurs, that will be returned.
 func newInfluxClient(name, addr, user, password string) (*InfluxClient, error) {
-	cl, err := client.NewHTTPClient(client.HTTPConfig{
+	cl, err := influx.NewHTTPClient(influx.HTTPConfig{
 		Addr:     addr,
 		Username: user,
 		Password: password,
@@ -31,7 +31,7 @@ func newInfluxClient(name, addr, user, password string) (*InfluxClient, error) {
 // InfluxDB.
 type InfluxClient struct {
 	DBName    string
-	Conn      client.Client
+	Conn      influx.Client
 	Precision string
 	pointsCh  chan []*influx.Point
 	doneCh    chan struct{}
@@ -54,17 +54,8 @@ func (c *InfluxClient) Write() {
 				CloseLog()        // Close log because defers don't run on os.Exit
 				os.Exit(1)
 			}
-			// TODO: work out error handling
-			if series.err != nil {
-				log.Error(
-					series.err.Error(),
-					zap.String("op", "process series data"),
-					zap.String("db", "influxdb"),
-				)
-				continue
-			}
 			// create the batchpoint from the data
-			bp, err := client.NewBatchPoints(client.BatchPointsConfig{
+			bp, err := influx.NewBatchPoints(influx.BatchPointsConfig{
 				Database:  c.DBName,
 				Precision: c.Precision,
 			})
