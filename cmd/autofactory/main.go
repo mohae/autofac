@@ -43,11 +43,11 @@ var (
 	logFile  *os.File
 
 	// Data; if data destination == file
-	data     czap.Logger // use mohae's fork to support level description override
-	dataOut  string
-	dataFile *os.File
-	dataDest string
-
+	data       czap.Logger // use mohae's fork to support level description override
+	dataOut    string
+	dataFile   *os.File
+	dataDest   string
+	outputType OutputType // the type of output
 	// if data destination == influxdb
 	serverID       string
 	clientConfFile string
