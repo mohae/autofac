@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"path/filepath"
 
+	"github.com/mohae/autofact/cmd/autofactory/output"
 	"github.com/mohae/autofact/conf"
 	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
@@ -47,7 +48,8 @@ var (
 	dataOut    string
 	dataFile   *os.File
 	dataDest   string
-	outputType OutputType // the type of output
+	outputType output.Type // the type of output
+
 	// if data destination == influxdb
 	serverID       string
 	clientConfFile string
@@ -158,15 +160,16 @@ func realMain() int {
 		return 1
 	}
 
+	outputType = output.TypeFromString(dataDest)
 	// Check data destination and handle accordingly
-	switch dataDest {
-	case "file":
+	switch outputType {
+	case output.File:
 		err = SetDataOut()
 		if err != nil { // don't do anything with error, func already handled logging.
 			return 1
 		}
 
-	case "influxdb":
+	case output.InfluxDB:
 		err = ConnectToInflux()
 		if err != nil { // don't do anything with error, func already handled logging.
 			return 1
