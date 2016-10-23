@@ -3,12 +3,28 @@
 // part but here it is.
 package output
 
-//go:generate stringer -type=OutputType
+import "strings"
+
+//go:generate stringer -type=Type
 // OutputType is the type of destination the collected data is written to.
-type OutputType int
+type Type int
 
 const (
-	Unsuported OutputType = iota
+	Unsupported Type = iota
 	File
 	InfluxDB
 )
+
+// TypeFromString returns the Type for a given string.  All input strings are
+// normalized to lowercase; unmatched strings return Unsupported.
+func TypeFromString(s string) Type {
+	s = strings.ToLower(s)
+	switch s {
+	case "file":
+		return File
+	case "influxdb":
+		return InfluxDB
+	default:
+		return Unsupported
+	}
+}
