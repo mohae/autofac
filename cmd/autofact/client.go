@@ -54,17 +54,21 @@ type Client struct {
 	CPUUtilization func(chan struct{})
 	MemInfo        func(chan struct{})
 	NetUsage       func(chan struct{})
+	tsLayout       string //the layout for timestamps
+	useTS          bool
 }
 
-func NewClient(c conf.Conn) *Client {
+func NewClient(c conf.Conn, useTS bool, l string) *Client {
 	return &Client{
 		Conn:    c,
 		Collect: conf.Collect{},
 		// A really small buffer:
 		// TODO: rethink this vis-a-vis what happens when recipient isn't there
 		// or if it goes away during sending and possibly caching items to be sent.
-		sendB:   make(chan []byte, 8),
-		sendStr: make(chan string, 8),
+		sendB:    make(chan []byte, 8),
+		sendStr:  make(chan string, 8),
+		useTS:    useTS,
+		tsLayout: l,
 	}
 }
 
@@ -411,14 +415,29 @@ func (c *Client) CPUUtilizationLocal(doneCh chan struct{}) {
 				)
 				return
 			}
-			data.Warn(
+			// there may be a better way, but I don't currently know it.
+			if c.useTS {
+				data.Info(
+					"cpuutil",
+					czap.Int64("ts", v.Timestamp),
+					czap.Int64("TimeDelta", v.TimeDelta),
+					czap.Int("BTimeDelta", int(v.BTimeDelta)),
+					czap.Int64("CtxtDelta", v.CtxtDelta),
+					czap.Int("Processes", int(v.Processes)),
+					czap.Object("CPU", v.CPU),
+				)
+				continue
+			}
+			data.Info(
 				"cpuutil",
+				czap.String("ts", c.FormattedTime(v.Timestamp)),
 				czap.Int64("TimeDelta", v.TimeDelta),
 				czap.Int("BTimeDelta", int(v.BTimeDelta)),
 				czap.Int64("CtxtDelta", v.CtxtDelta),
 				czap.Int("Processes", int(v.Processes)),
 				czap.Object("CPU", v.CPU),
 			)
+
 		case <-doneCh:
 			return
 		}
@@ -492,8 +511,22 @@ func (c *Client) MemInfoLocal(doneCh chan struct{}) {
 				)
 				return
 			}
-			data.Warn(
+			if c.useTS {
+				data.Info(
+					"meminfo",
+					czap.Int64("ts", v.Timestamp),
+					czap.Uint64("TotalRAM", v.TotalRAM),
+					czap.Uint64("FreeRAM", v.FreeRAM),
+					czap.Uint64("SharedRAM", v.SharedRAM),
+					czap.Uint64("BufferRAM", v.BufferRAM),
+					czap.Uint64("TotalSwap", v.TotalSwap),
+					czap.Uint64("FreeSwap", v.FreeSwap),
+				)
+				continue
+			}
+			data.Info(
 				"meminfo",
+				czap.String("ts", c.FormattedTime(v.Timestamp)),
 				czap.Uint64("TotalRAM", v.TotalRAM),
 				czap.Uint64("FreeRAM", v.FreeRAM),
 				czap.Uint64("SharedRAM", v.SharedRAM),
@@ -501,6 +534,7 @@ func (c *Client) MemInfoLocal(doneCh chan struct{}) {
 				czap.Uint64("TotalSwap", v.TotalSwap),
 				czap.Uint64("FreeSwap", v.FreeSwap),
 			)
+
 		case <-doneCh:
 			return
 		}
@@ -577,8 +611,18 @@ func (c *Client) NetUsageLocal(doneCh chan struct{}) {
 				return
 			}
 			// log the data
-			data.Warn(
+			if c.useTS {
+				data.Info(
+					"netusage",
+					czap.Int64("ts", v.Timestamp),
+					czap.Int64("TimeDelta", v.TimeDelta),
+					czap.Object("Interfaces", v.Interfaces),
+				)
+				continue
+			}
+			data.Info(
 				"netusage",
+				czap.String("ts", c.FormattedTime(v.Timestamp)),
 				czap.Int64("TimeDelta", v.TimeDelta),
 				czap.Object("Interfaces", v.Interfaces),
 			)
@@ -635,16 +679,34 @@ func (c *Client) HealthbeatLocal(done chan struct{}) {
 				return
 			}
 			// log the data
-			loadOut.Warn(
+			if c.useTS {
+				loadOut.Info(
+					"loadavg",
+					czap.Int64("ts", l.Timestamp),
+					czap.Float64("One", l.One),
+					czap.Float64("Five", l.Five),
+					czap.Float64("Fifteen", l.Fifteen),
+				)
+				continue
+			}
+			loadOut.Info(
 				"loadavg",
+				czap.String("ts", c.FormattedTime(l.Timestamp)),
 				czap.Float64("One", l.One),
 				czap.Float64("Five", l.Five),
 				czap.Float64("Fifteen", l.Fifteen),
 			)
+
 		case <-done:
 			return
 		}
 	}
+}
+
+// FormattedTime returns the nanoseconds as a formatted datetime string using
+// the client's layout.
+func (c *Client) FormattedTime(t int64) string {
+	return time.Unix(0, t).Format(c.tsLayout)
 }
 
 // LoadAvgFB gets the current loadavg as Flatbuffer serialized bytes.

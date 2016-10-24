@@ -47,7 +47,8 @@ var (
 	data     czap.Logger // use mohae's fork to support level description override
 	dataOut  string
 	dataFile *os.File
-	tslayout string
+	tsLayout string
+	useTS    bool // bool so tslayout doesn't have to be used as a comparison to see if the ts int is to be used.
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
@@ -63,14 +64,14 @@ func init() {
 	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
 	flag.StringVar(&dataOut, "dataout", "stdout", "serverless mode data output, if empty stderr will be used")
 	flag.StringVar(&dataOut, "d", "stdout", "serverless mode data output, if empty stderr will be used")
-	flag.StringVar(&tslayout, "tslayout", "epoch", "for serverless output, the layout of the time output. See https://golang.org/pkg/time/#time.Constants.")
+	flag.StringVar(&tsLayout, "tslayout", "epoch", "for serverless output, the layout of the time output. See https://golang.org/pkg/time/#time.Constants.")
 	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
 	flag.BoolVar(&startInfo, "startinfo", false, "when operating serverless the client's system info will be collected on app start")
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 
 	// override czap description for InfoLevel
-	czap.WarnString = "data"
+	czap.InfoString = "data"
 }
 
 func main() {
@@ -102,7 +103,7 @@ func main() {
 	SetLogging()
 	// see if the tslayout is actually the name of a layout constant; if it is
 	// use that constant's layout string.
-	tslayout = util.TimeLayout(tslayout)
+	tsLayout, useTS = util.TimeLayout(tsLayout)
 	defer CloseOut()
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
@@ -116,7 +117,7 @@ func main() {
 	// TODO add env var support
 
 	// get a client
-	c := NewClient(connConf)
+	c := NewClient(connConf, useTS, tsLayout)
 	c.AutoPath = autofactPath
 
 	// if serverless: load the collection configuration
@@ -262,7 +263,7 @@ newData:
 		),
 		czap.Output(dataFile),
 	)
-	data.SetLevel(czap.WarnLevel)
+	data.SetLevel(czap.InfoLevel)
 }
 
 // CloseOut closes the local output destinations before shutdown.
