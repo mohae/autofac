@@ -154,53 +154,54 @@ func BoolToByte(b bool) byte {
 // TimeLayout set's the data output's time layout.  This handles any layout
 // that is a constant as defined by time.Constants along with ts or timestamp.
 // The default is 'epoch', if the layout string is either empty, or is 'epoch'
-// the time will be written out as time since unix epoch.
+// the time will be written out as time since unix epoch and true will be
+// returned, otherwise false will be returned for the bool value.
 //
 // If the specified time format is not a string that matches a time.Constants
 // layout, it will be asumed that the specified format is valid; no validation
 // will be done on the specified format.
 //
 // All input is upper cased prior to evaluation.
-func TimeLayout(l string) string {
+func TimeLayout(l string) (string, bool) {
 	if len(l) == 0 {
-		return Epoch
+		return Epoch, true
 	}
 	// uppercase the layout for consistency
 	l = strings.ToUpper(l)
 	switch l {
 	case "EPOCH":
-		return Epoch // this is the only value that doesn't get formatted
+		return Epoch, true // this is the only value that doesn't get formatted
 	case "ANSIC":
-		return time.ANSIC
+		return time.ANSIC, false
 	case "UNIXDATE":
-		return time.UnixDate
+		return time.UnixDate, false
 	case "RUBYDATE":
-		return time.RubyDate
+		return time.RubyDate, false
 	case "RFC822":
-		return time.RFC822
+		return time.RFC822, false
 	case "RFC822Z":
-		return time.RFC822Z
+		return time.RFC822Z, false
 	case "RFC850":
-		return time.RFC850
+		return time.RFC850, false
 	case "RFC1123":
-		return time.RFC1123
+		return time.RFC1123, false
 	case "RFC1123Z":
-		return time.RFC1123Z
+		return time.RFC1123Z, false
 	case "RFC3339":
-		return time.RFC3339
+		return time.RFC3339, false
 	case "RFC3339Nano":
-		return time.RFC3339Nano
+		return time.RFC3339Nano, false
 	case "KITCHEN":
-		return time.Kitchen
+		return time.Kitchen, false
 	case "STAMP":
-		return time.Stamp
+		return time.Stamp, false
 	case "STAMPMILLI":
-		return time.StampMilli
+		return time.StampMilli, false
 	case "STAMPMICRO":
-		return time.StampMicro
+		return time.StampMicro, false
 	case "STAMPNANO":
-		return time.StampNano
+		return time.StampNano, false
 	default:
-		return l
+		return l, false
 	}
 }
