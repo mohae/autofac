@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/websocket"
 	influx "github.com/influxdata/influxdb/client/v2"
 	"github.com/mohae/autofact"
+	"github.com/mohae/autofact/cmd/autofactory/output"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
@@ -19,6 +20,7 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/randchars"
 	"github.com/mohae/snoflinga"
+	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
 
@@ -161,7 +163,20 @@ type Client struct {
 	Conf *conf.Client
 	WS   *websocket.Conn
 	*InfluxClient
-	isConnected bool
+	isConnected    bool
+	CPUUtilization func(*message.Message)
+}
+
+// SetFuncs sets the processing func for the client based on the output destination type.
+func (c *Client) SetFuncs() {
+	// at this point outputType is a supported output.Type so only need to handle
+	// the supported ones.
+	switch outputType {
+	case output.File:
+		c.CPUUtilization = c.CPUUtilizationFile
+	case output.InfluxDB:
+		c.CPUUtilization = c.CPUUtilizationInfluxDB
+	}
 }
 
 // Listen listens for messages and handles them accordingly.  Binary messages
@@ -258,38 +273,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
-		fmt.Printf("%s: cpu utilization\n", c.Conf.Hostname())
-		cpus := cpuutil.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		// Each cpu is it's own point, make a slice to accommodate them all and process.
-		pts := make([]*influx.Point, 0, len(cpus.CPU))
-		for _, cpu := range cpus.CPU {
-			tags["cpu"] = cpu.ID
-			fields := map[string]interface{}{
-				"usage":  float32(cpu.Usage) / 100.0,
-				"user":   float32(cpu.User) / 100.0,
-				"nice":   float32(cpu.Nice) / 100.0,
-				"system": float32(cpu.System) / 100.0,
-				"idle":   float32(cpu.Idle) / 100.0,
-				"iowait": float32(cpu.IOWait) / 100.0,
-			}
-			pt, err := influx.NewPoint("cpus", tags, fields, time.Unix(0, cpus.Timestamp).UTC())
-			if err != nil {
-				log.Error(
-					err.Error(),
-					zap.String("op", "create point"),
-					zap.String("client", string(c.Conf.IDBytes())),
-					zap.String("stat", "cpu utilization"),
-					zap.String("cpu", cpu.ID),
-				)
-				continue
-			}
-			pts = append(pts, pt)
-		}
-		// only send if there were any points generated
-		if len(pts) != 0 {
-			c.InfluxClient.pointsCh <- pts
-		}
+		c.CPUUtilization(msg)
 	case message.LoadAvg:
 		fmt.Printf("%s: loadavg\n", c.Conf.Hostname())
 		l := loadf.Deserialize(msg.DataBytes())
@@ -387,4 +371,47 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		)
 	}
 	return nil
+}
+
+func (c *Client) CPUUtilizationInfluxDB(msg *message.Message) {
+	cpus := cpuutil.Deserialize(msg.DataBytes())
+	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
+	// Each cpu is it's own point, make a slice to accommodate them all and process.
+	pts := make([]*influx.Point, 0, len(cpus.CPU))
+	for _, cpu := range cpus.CPU {
+		tags["cpu"] = cpu.ID
+		fields := map[string]interface{}{
+			"usage":  float32(cpu.Usage) / 100.0,
+			"user":   float32(cpu.User) / 100.0,
+			"nice":   float32(cpu.Nice) / 100.0,
+			"system": float32(cpu.System) / 100.0,
+			"idle":   float32(cpu.Idle) / 100.0,
+			"iowait": float32(cpu.IOWait) / 100.0,
+		}
+		pt, err := influx.NewPoint("cpus", tags, fields, time.Unix(0, cpus.Timestamp).UTC())
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "create point"),
+				zap.String("client", string(c.Conf.IDBytes())),
+				zap.String("stat", "cpu utilization"),
+				zap.String("cpu", cpu.ID),
+			)
+			continue
+		}
+		pts = append(pts, pt)
+	}
+	// only send if there were any points generated
+	if len(pts) != 0 {
+		c.InfluxClient.pointsCh <- pts
+	}
+}
+
+func (c *Client) CPUUtilizationFile(msg *message.Message) {
+	cpus := cpuutil.Deserialize(msg.DataBytes())
+	data.Warn(
+		"cpuutil",
+		// add timestamp handling
+		czap.Object("data", cpus),
+	)
 }

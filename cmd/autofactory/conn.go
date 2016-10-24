@@ -80,6 +80,7 @@ func serveClient(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 sendInf:
+	c.SetFuncs()
 	// update the node with the current inf
 	bldr := flatbuffers.NewBuilder(0)
 	h := bldr.CreateByteString(c.Conf.Hostname())
