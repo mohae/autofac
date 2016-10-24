@@ -4,6 +4,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	pcg "github.com/dgryski/go-pcgr"
@@ -14,6 +15,7 @@ const (
 	maxInt64 = 1<<63 - 1
 	alphanum = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
 	IDLen    = 8
+	Epoch    = "epoch" // constant for using the raw timestamp instead of a time.Format
 )
 
 // util has its own prng
@@ -147,4 +149,58 @@ func BoolToByte(b bool) byte {
 		return 0x01
 	}
 	return 0x00
+}
+
+// TimeLayout set's the data output's time layout.  This handles any layout
+// that is a constant as defined by time.Constants along with ts or timestamp.
+// The default is 'epoch', if the layout string is either empty, or is 'epoch'
+// the time will be written out as time since unix epoch.
+//
+// If the specified time format is not a string that matches a time.Constants
+// layout, it will be asumed that the specified format is valid; no validation
+// will be done on the specified format.
+//
+// All input is upper cased prior to evaluation.
+func TimeLayout(l string) string {
+	if len(l) == 0 {
+		return Epoch
+	}
+	// uppercase the layout for consistency
+	l = strings.ToUpper(l)
+	switch l {
+	case "EPOCH":
+		return Epoch // this is the only value that doesn't get formatted
+	case "ANSIC":
+		return time.ANSIC
+	case "UNIXDATE":
+		return time.UnixDate
+	case "RUBYDATE":
+		return time.RubyDate
+	case "RFC822":
+		return time.RFC822
+	case "RFC822Z":
+		return time.RFC822Z
+	case "RFC850":
+		return time.RFC850
+	case "RFC1123":
+		return time.RFC1123
+	case "RFC1123Z":
+		return time.RFC1123Z
+	case "RFC3339":
+		return time.RFC3339
+	case "RFC3339Nano":
+		return time.RFC3339Nano
+	case "KITCHEN":
+		return time.Kitchen
+	case "STAMP":
+		return time.Stamp
+	case "STAMPMILLI":
+		return time.StampMilli
+	case "STAMPMICRO":
+		return time.StampMicro
+	case "STAMPNANO":
+		return time.StampNano
+	default:
+		return l
+	}
 }

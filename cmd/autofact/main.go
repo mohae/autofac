@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mohae/autofact/conf"
+	"github.com/mohae/autofact/util"
 	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
@@ -46,6 +47,7 @@ var (
 	data     czap.Logger // use mohae's fork to support level description override
 	dataOut  string
 	dataFile *os.File
+	tslayout string
 )
 
 // TODO: reconcile these flags with config file usage.  Probably add contour
@@ -61,6 +63,7 @@ func init() {
 	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
 	flag.StringVar(&dataOut, "dataout", "stdout", "serverless mode data output, if empty stderr will be used")
 	flag.StringVar(&dataOut, "d", "stdout", "serverless mode data output, if empty stderr will be used")
+	flag.StringVar(&tslayout, "tslayout", "epoch", "for serverless output, the layout of the time output. See https://golang.org/pkg/time/#time.Constants.")
 	flag.BoolVar(&serverless, "serverless", false, "serverless: the client will run standalone and write the collected data to the log")
 	flag.BoolVar(&startInfo, "startinfo", false, "when operating serverless the client's system info will be collected on app start")
 	connConf.ConnectInterval.Duration = 5 * time.Second
@@ -97,6 +100,9 @@ func main() {
 
 	// now that everything is parsed; set up logging
 	SetLogging()
+	// see if the tslayout is actually the name of a layout constant; if it is
+	// use that constant's layout string.
+	tslayout = util.TimeLayout(tslayout)
 	defer CloseOut()
 	// if there was an error reading the connection configuration and this isn't
 	// being run serverless, log it
@@ -252,7 +258,7 @@ func SetDataOut() {
 newData:
 	data = czap.New(
 		czap.NewJSONEncoder(
-			czap.RFC3339Formatter("ts"),
+			czap.NoTime(), // the time should be added using the specified layout
 		),
 		czap.Output(dataFile),
 	)

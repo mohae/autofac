@@ -10,6 +10,7 @@ import (
 
 	"github.com/mohae/autofact/cmd/autofactory/output"
 	"github.com/mohae/autofact/conf"
+	"github.com/mohae/autofact/util"
 	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
@@ -49,6 +50,7 @@ var (
 	dataFile   *os.File
 	dataDest   string
 	outputType output.Type // the type of output
+	tslayout   string
 
 	// if data destination == influxdb
 	serverID       string
@@ -83,6 +85,7 @@ func init() {
 	flag.StringVar(&logOut, "l", "stderr", "log output; if empty stderr will be used")
 	flag.StringVar(&dataOut, "dataout", "stdout", "data output location for when the data destination is file, if empty stdout will be used")
 	flag.StringVar(&dataDest, "datadestination", "file", "the destination for collected data: file or influxdb")
+	flag.StringVar(&tslayout, "tslayout", "epoch", "for file output, the layout of the time output. See https://golang.org/pkg/time/#time.Constants.")
 }
 
 func main() {
@@ -110,6 +113,9 @@ func realMain() int {
 
 	flag.Parse()
 
+	// see if the tslayout is actually the name of a layout constant; if it is
+	// use that constant's layout string.
+	tslayout = util.TimeLayout(tslayout)
 	// now that everything is parsed; set up logging
 	SetLogging()
 	defer CloseOut()
