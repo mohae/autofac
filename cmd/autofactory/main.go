@@ -270,7 +270,7 @@ func SetDataOut() error {
 newData:
 	data = czap.New(
 		czap.NewJSONEncoder(
-			czap.RFC3339Formatter("ts"),
+			czap.NoTime(),
 		),
 		czap.Output(dataFile),
 	)

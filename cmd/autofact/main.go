@@ -222,7 +222,7 @@ func SetLogging() {
 newLog:
 	log = zap.New(
 		zap.NewJSONEncoder(
-			zap.RFC3339Formatter("ts"),
+			zap.NoTime(),
 		),
 		zap.Output(logFile),
 	)
