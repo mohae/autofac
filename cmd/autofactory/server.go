@@ -418,12 +418,26 @@ func (c *Client) CPUUtilizationInfluxDB(msg *message.Message) {
 }
 
 func (c *Client) CPUUtilizationFile(msg *message.Message) {
+	// using Object means that timestamp will be a replicated field, as ts and
+	// timestamp, with timestamp being the int64 because I don't want to write
+	// a separate entry per cpu and replicate the top level delta info.
 	cpus := cpuutil.Deserialize(msg.DataBytes())
-	data.Warn(
+	if c.useTS {
+		data.Info(
+			"cpuutil",
+			// add timestamp handling
+			czap.Int64("ts", cpus.Timestamp),
+			czap.Object("data", cpus),
+		)
+		return
+	}
+	data.Info(
 		"cpuutil",
 		// add timestamp handling
+		czap.String("ts", c.FormattedTime(cpus.Timestamp)),
 		czap.Object("data", cpus),
 	)
+
 }
 
 // FormattedTime returns the nanoseconds as a formatted datetime string using
