@@ -87,6 +87,9 @@ func init() {
 	flag.StringVar(&dataOut, "dataout", "stdout", "data output location for when the data destination is file, if empty stdout will be used")
 	flag.StringVar(&dataDest, "datadestination", "file", "the destination for collected data: file or influxdb")
 	flag.StringVar(&tsLayout, "tslayout", "epoch", "for file output, the layout of the time output. See https://golang.org/pkg/time/#time.Constants.")
+
+	// override czap description for InfoLevel
+	czap.InfoString = "data"
 }
 
 func main() {
@@ -283,8 +286,7 @@ newData:
 		),
 		czap.Output(dataFile),
 	)
-	data.SetLevel(czap.WarnLevel)
-	useTS = true
+	data.SetLevel(czap.InfoLevel)
 	return nil
 }
 
