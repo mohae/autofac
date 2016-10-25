@@ -50,11 +50,15 @@ type server struct {
 	InfluxDBName  string `json:"influx_db_name"`
 	InfluxAddress string `json:"influx_address"`
 	idGen         snoflinga.Generator
+	tsLayout      string //the layout for timestamps
+	useTS         bool
 }
 
-func newServer() server {
+func newServer(useTS bool, l string) server {
 	return server{
 		Inventory: newInventory(),
+		useTS:     useTS,
+		tsLayout:  l,
 	}
 }
 
@@ -101,6 +105,8 @@ func (s *server) Client(id []byte) (*Client, bool) {
 	return &Client{
 		Conf:         c,
 		InfluxClient: s.InfluxClient,
+		tsLayout:     s.tsLayout,
+		useTS:        useTS,
 	}, true
 }
 
@@ -123,6 +129,8 @@ func (s *server) NewClient() (c *Client, err error) {
 	}
 	// save the client info to the db
 	err = s.Bolt.SaveClient(c.Conf)
+	c.tsLayout = s.tsLayout
+	c.useTS = s.useTS
 	return c, err
 }
 
@@ -165,6 +173,8 @@ type Client struct {
 	*InfluxClient
 	isConnected    bool
 	CPUUtilization func(*message.Message)
+	tsLayout       string //the layout for timestamps
+	useTS          bool
 }
 
 // SetFuncs sets the processing func for the client based on the output destination type.
@@ -414,4 +424,10 @@ func (c *Client) CPUUtilizationFile(msg *message.Message) {
 		// add timestamp handling
 		czap.Object("data", cpus),
 	)
+}
+
+// FormattedTime returns the nanoseconds as a formatted datetime string using
+// the client's layout.
+func (c *Client) FormattedTime(t int64) string {
+	return time.Unix(0, t).Format(c.tsLayout)
 }
