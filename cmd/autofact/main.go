@@ -148,8 +148,8 @@ func main() {
 	// Set up the output destination.
 	if serverless { // open the datafile to use
 		SetDataOut()
-		if startInfo { // if system info is collected on startup...
-			WriteSystemInfo()
+		if startInfo {
+			c.SystemInfoServerless()
 		}
 	}
 
