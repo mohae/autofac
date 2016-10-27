@@ -4,9 +4,9 @@ package message
 
 import "fmt"
 
-const _Kind_name = "UnknownEOTGenericCommandSysInfoClientConfCPUUtilizationLoadAvgMemInfoNetUsage"
+const _Kind_name = "UnknownEOTGenericCommandSysInfoFBSysInfoJSONClientConfCPUUtilizationLoadAvgMemInfoNetUsage"
 
-var _Kind_index = [...]uint8{0, 7, 10, 17, 24, 31, 41, 55, 62, 69, 77}
+var _Kind_index = [...]uint8{0, 7, 10, 17, 24, 33, 44, 54, 68, 75, 82, 90}
 
 func (i Kind) String() string {
 	if i < 0 || i >= Kind(len(_Kind_index)-1) {

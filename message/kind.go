@@ -9,7 +9,8 @@ const (
 	EOT          // end of transmission (for sequences that involve multiple messages, e.g. handshake)
 	Generic
 	Command
-	SysInfo
+	SysInfoFB
+	SysInfoJSON
 	ClientConf
 	CPUUtilization // CPU Utilization information
 	LoadAvg        // Sysinfo based load avg

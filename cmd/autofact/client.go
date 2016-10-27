@@ -147,7 +147,6 @@ handshake:
 					c.Collect.NetUsagePeriod.Set(cnf.NetUsagePeriod())
 				}
 			case message.EOT:
-				// send the systeminfo
 				break handshake
 			default:
 				log.Error("unknown message type received during handshake")
@@ -753,6 +752,34 @@ func (c *Client) SystemInfoServerless() {
 		czap.String("cache_size", s.Chips[0].CacheSize),
 		czap.Int("cpu_cores", int(s.Chips[0].CPUCores)),
 	)
+}
+
+// SystemInfoServerJSON gathers information about the local system and sends it
+// to the server as JSON serialized bytes.  If an error occurs, it will be
+// logged and an error will be sent to the server; the client will continue
+// running.
+func (c *Client) SystemInfoServerJSON() {
+	// If the node information is to be written do it now
+	var s systeminfo.System
+	err := s.Get()
+	if err != nil {
+		log.Warn(
+			err.Error(),
+			zap.String("op", "get systeminfo"),
+		)
+		return
+	}
+	b, err := s.JSONMarshal()
+	if err != nil {
+		log.Warn(
+			err.Error(),
+			zap.String("op", "marshal json"),
+			zap.String("type", "systeminfo"),
+		)
+		return
+	}
+	c.sendB <- c.NewMessage(message.SysInfoJSON, b)
+	return
 }
 
 // FormattedTime returns the nanoseconds as a formatted datetime string using
