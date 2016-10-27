@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/url"
 	"time"
 
@@ -283,9 +282,16 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	k := message.Kind(msg.Kind())
 	switch k {
 	case message.CPUUtilization:
+		log.Debug(
+			"cpuutil",
+			zap.String("client", c.Conf.Hostname()),
+		)
 		c.CPUUtilization(msg)
 	case message.LoadAvg:
-		fmt.Printf("%s: loadavg\n", c.Conf.Hostname())
+		log.Debug(
+			"loadavg",
+			zap.String("client", c.Conf.Hostname()),
+		)
 		l := loadf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		fields := map[string]interface{}{
@@ -305,7 +311,10 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			c.InfluxClient.pointsCh <- []*influx.Point{pt}
 		}
 	case message.MemInfo:
-		fmt.Printf("%s: meminfo\n", c.Conf.Hostname())
+		log.Debug(
+			"meminfo",
+			zap.String("client", c.Conf.Hostname()),
+		)
 		m := memf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		fields := map[string]interface{}{
@@ -328,7 +337,10 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			c.InfluxClient.pointsCh <- []*influx.Point{pt}
 		}
 	case message.NetUsage:
-		fmt.Printf("%s: network usage\n", c.Conf.Hostname())
+		log.Debug(
+			"netusage",
+			zap.String("client", c.Conf.Hostname()),
+		)
 		ifaces := netf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 		// Make a slice of points whose length is equal to the number of Interfaces
