@@ -284,13 +284,13 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	case message.CPUUtilization:
 		log.Debug(
 			"cpuutil",
-			zap.String("client", c.Conf.Hostname()),
+			zap.String("client", string(c.Conf.Hostname())),
 		)
 		c.CPUUtilization(msg)
 	case message.LoadAvg:
 		log.Debug(
 			"loadavg",
-			zap.String("client", c.Conf.Hostname()),
+			zap.String("client", string(c.Conf.Hostname())),
 		)
 		l := loadf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
@@ -313,7 +313,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	case message.MemInfo:
 		log.Debug(
 			"meminfo",
-			zap.String("client", c.Conf.Hostname()),
+			zap.String("client", string(c.Conf.Hostname())),
 		)
 		m := memf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
@@ -339,7 +339,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	case message.NetUsage:
 		log.Debug(
 			"netusage",
-			zap.String("client", c.Conf.Hostname()),
+			zap.String("client", string(c.Conf.Hostname())),
 		)
 		ifaces := netf.Deserialize(msg.DataBytes())
 		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
