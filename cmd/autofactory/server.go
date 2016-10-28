@@ -19,6 +19,7 @@ import (
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/randchars"
 	"github.com/mohae/snoflinga"
+	"github.com/mohae/systeminfo"
 	czap "github.com/mohae/zap"
 	"github.com/uber-go/zap"
 )
@@ -383,6 +384,27 @@ func (c *Client) processBinaryMessage(p []byte) error {
 		if len(pts) > 0 {
 			c.InfluxClient.pointsCh <- pts
 		}
+	case message.SysInfoJSON:
+		log.Debug(
+			"sysinfojson",
+			zap.String("client", string(c.Conf.Hostname())),
+		)
+		s, err := systeminfo.JSONUnmarshal(p)
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "unmarshal JSON"),
+				zap.String("client", string(c.Conf.IDBytes())),
+				zap.String("kind", k.String()),
+			)
+			return nil
+		}
+		// TODO: should something be done with sysinfo, other than log it?
+		log.Info(
+			"systeminfo",
+			zap.String("client", string(c.Conf.Hostname())),
+			zap.Object("data", s),
+		)
 	default:
 		log.Error(
 			"unsupported message kind",
