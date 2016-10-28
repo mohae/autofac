@@ -28,6 +28,8 @@ type Bolt struct {
 // Open opens a bolt database.
 func (b *Bolt) Open(name string) error {
 	b.Filename = name
+	fmt.Println(name)
+	fmt.Println(b.Filename)
 	var notExist bool
 	// See if the file exists.  If it does not exist, the buckets will need to
 	// be created.

@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	srvr     server
+	srvr     = newServer()
 	connConf conf.Conn
 
 	// Logging
@@ -113,8 +113,6 @@ func realMain() int {
 		return 1
 	}
 
-	srvr.BoltDBFile = filepath.Join(autofactoryPath, srvr.BoltDBFile)
-
 	flag.Parse()
 
 	// see if the tslayout is actually the name of a layout constant; if it is
@@ -124,10 +122,11 @@ func realMain() int {
 	SetLogging()
 	defer CloseOut()
 
-	// create and configure the server
-	srvr = newServer(useTS, tsLayout)
+	srvr.UseTS = useTS
+	srvr.TSLayout = tsLayout
 	srvr.ID = []byte(serverID)
 	srvr.NewSnowflakeGenerator()
+	srvr.BoltDBFile = filepath.Join(autofactoryPath, srvr.BoltDBFile)
 	srvr.AutoPath = autofactoryPath
 	// load the default client conf; this is used for new clients.
 	// TODO: in the future, there should be support for enabling setting per
@@ -151,7 +150,6 @@ func realMain() int {
 		)
 		// write this out to the app dir
 		srvr.Collect.UseDefaults()
-		fmt.Println(autofactoryPath, srvr.Collect.Filename)
 		err = srvr.Collect.SaveJSON(srvr.AutoPath)
 		if err != nil { // a save error isn't fatal
 			log.Error(

@@ -50,15 +50,13 @@ type server struct {
 	InfluxDBName  string `json:"influx_db_name"`
 	InfluxAddress string `json:"influx_address"`
 	idGen         snoflinga.Generator
-	tsLayout      string //the layout for timestamps
-	useTS         bool
+	TSLayout      string //the layout for timestamps
+	UseTS         bool
 }
 
-func newServer(useTS bool, l string) server {
+func newServer() server {
 	return server{
 		Inventory: newInventory(),
-		useTS:     useTS,
-		tsLayout:  l,
 	}
 }
 
@@ -105,8 +103,8 @@ func (s *server) Client(id []byte) (*Client, bool) {
 	return &Client{
 		Conf:         c,
 		InfluxClient: s.InfluxClient,
-		tsLayout:     s.tsLayout,
-		useTS:        useTS,
+		tsLayout:     s.TSLayout,
+		useTS:        s.UseTS,
 	}, true
 }
 
@@ -129,8 +127,8 @@ func (s *server) NewClient() (c *Client, err error) {
 	}
 	// save the client info to the db
 	err = s.Bolt.SaveClient(c.Conf)
-	c.tsLayout = s.tsLayout
-	c.useTS = s.useTS
+	c.tsLayout = s.TSLayout
+	c.useTS = s.UseTS
 	return c, err
 }
 
