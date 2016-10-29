@@ -22,7 +22,7 @@ func TypeFromString(s string) Type {
 	switch s {
 	case "file":
 		return File
-	case "influxdb":
+	case "influxdb", "influx":
 		return InfluxDB
 	default:
 		return Unsupported
