@@ -176,12 +176,14 @@ func realMain() int {
 	case output.File:
 		err = SetDataOut()
 		if err != nil { // don't do anything with error, func already handled logging.
+			fmt.Println("failed to open file output")
 			return 1
 		}
 
 	case output.InfluxDB:
-		err = ConnectToInflux()
+		err = srvr.SetInfluxDB(influxUser, influxPassword)
 		if err != nil { // don't do anything with error, func already handled logging.
+			fmt.Println("failed to connect to InfluxDB")
 			return 1
 		}
 
@@ -190,7 +192,7 @@ func realMain() int {
 		return 1
 	}
 
-	go handleSignals(&srvr)
+	go handleSignals(srvr)
 	srvr.LoadInventory()
 	http.HandleFunc("/client", serveClient)
 	err = http.ListenAndServe(fmt.Sprintf(":%s", connConf.ServerPort), nil)
@@ -285,23 +287,5 @@ newData:
 		czap.Output(dataFile),
 	)
 	data.SetLevel(czap.InfoLevel)
-	return nil
-}
-
-func ConnectToInflux() error {
-	// connect to Influx
-	err := srvr.connectToInfluxDB(influxUser, influxPassword)
-	if err != nil {
-		log.Error(
-			err.Error(),
-			zap.String("op", "connect to influxdb"),
-			zap.String("db", srvr.InfluxDBName),
-		)
-		return err
-	}
-	// start the Influx writer
-	// TODO: influx writer should handle done channel signaling
-	go srvr.InfluxClient.Write()
-
 	return nil
 }

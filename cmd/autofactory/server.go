@@ -49,13 +49,15 @@ type server struct {
 	BoltDBFile    string `json:"bolt_db_file"`
 	InfluxDBName  string `json:"influx_db_name"`
 	InfluxAddress string `json:"influx_address"`
+	influxUser    string
+	influxPass    string
 	idGen         snoflinga.Generator
 	TSLayout      string //the layout for timestamps
 	UseTS         bool
 }
 
-func newServer() server {
-	return server{
+func newServer() *server {
+	return &server{
 		Inventory: newInventory(),
 	}
 }
@@ -86,10 +88,30 @@ func (s *server) LoadInventory() (int, error) {
 	return n, nil
 }
 
+func (s *server) SetInfluxDB(u, p string) error {
+	s.influxUser = u
+	s.influxPass = p
+	// connect to Influx
+	err := s.connectToInfluxDB()
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "connect to influxdb"),
+			zap.String("db", s.InfluxDBName),
+		)
+		return err
+	}
+	// start the Influx writer
+	// TODO: influx writer should handle done channel signaling
+	go s.InfluxClient.Write()
+
+	return nil
+}
+
 // connects to InfluxDB
-func (s *server) connectToInfluxDB(u, p string) error {
+func (s *server) connectToInfluxDB() error {
 	var err error
-	s.InfluxClient, err = newInfluxClient(srvr.InfluxDBName, srvr.InfluxAddress, u, p)
+	s.InfluxClient, err = newInfluxClient(s.InfluxDBName, s.InfluxAddress, s.influxUser, s.influxPass)
 	return err
 }
 
