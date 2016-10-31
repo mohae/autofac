@@ -167,7 +167,11 @@ func (s *server) newClient(id []byte) *Client {
 	c := Client{
 		Conf: conf.GetRootAsClient(bldr.Bytes[bldr.Head():], 0),
 	}
-
+	if data != nil {
+		c.Data = data.With(
+			czap.String("client", string(c.Conf.IDBytes())),
+		)
+	}
 	return &c
 }
 
@@ -195,6 +199,8 @@ type Client struct {
 	CPUUtilization func(*message.Message)
 	tsLayout       string //the layout for timestamps
 	useTS          bool
+	// Data is a child Data Logger with relevant context for when output is to a File.
+	Data czap.Logger
 }
 
 // SetFuncs sets the processing func for the client based on the output destination type.
@@ -477,7 +483,7 @@ func (c *Client) CPUUtilizationFile(msg *message.Message) {
 	// a separate entry per cpu and replicate the top level delta info.
 	cpus := cpuutil.Deserialize(msg.DataBytes())
 	if c.useTS {
-		data.Info(
+		c.Data.Info(
 			"cpuutil",
 			// add timestamp handling
 			czap.Int64("ts", cpus.Timestamp),
@@ -485,7 +491,7 @@ func (c *Client) CPUUtilizationFile(msg *message.Message) {
 		)
 		return
 	}
-	data.Info(
+	c.Data.Info(
 		"cpuutil",
 		// add timestamp handling
 		czap.String("ts", c.FormattedTime(cpus.Timestamp)),
