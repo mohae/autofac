@@ -198,6 +198,7 @@ type Client struct {
 	isConnected    bool
 	CPUUtilization func(*message.Message)
 	LoadAvg        func(*message.Message)
+	MemInfo        func(*message.Message)
 	tsLayout       string //the layout for timestamps
 	useTS          bool
 	// Data is a child Data Logger with relevant context for when output is to a File.
@@ -212,9 +213,11 @@ func (c *Client) SetFuncs() {
 	case output.File:
 		c.CPUUtilization = c.CPUUtilizationFile
 		c.LoadAvg = c.LoadAvgFile
+		c.MemInfo = c.MemInfoFile
 	case output.InfluxDB:
 		c.CPUUtilization = c.CPUUtilizationInfluxDB
 		c.LoadAvg = c.LoadAvgInfluxDB
+		c.MemInfo = c.MemInfoInfluxDB
 	}
 }
 
@@ -328,27 +331,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"meminfo",
 			zap.String("client", string(c.Conf.Hostname())),
 		)
-		m := memf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		fields := map[string]interface{}{
-			"total_ram":  m.TotalRAM,
-			"free_ram":   m.FreeRAM,
-			"shared_ram": m.SharedRAM,
-			"buffer_ram": m.BufferRAM,
-			"total_swap": m.TotalSwap,
-			"free_swap":  m.FreeSwap,
-		}
-		pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
-		if err != nil {
-			log.Error(
-				err.Error(),
-				zap.String("op", "create point"),
-				zap.String("client", string(c.Conf.IDBytes())),
-				zap.String("stat", "meminfo"),
-			)
-		} else {
-			c.InfluxClient.pointsCh <- []*influx.Point{pt}
-		}
+		c.MemInfo(msg)
 	case message.NetUsage:
 		log.Debug(
 			"netusage",
@@ -508,7 +491,7 @@ func (c *Client) LoadAvgInfluxDB(msg *message.Message) {
 	}
 }
 
-// LoadAvgFile process LoadAvg messages and saves to the data file as JSON.
+// LoadAvgFile processes LoadAvg messages and saves to the data file as JSON.
 func (c *Client) LoadAvgFile(msg *message.Message) {
 	l := loadf.Deserialize(msg.DataBytes())
 	c.Data.Info(
@@ -517,6 +500,46 @@ func (c *Client) LoadAvgFile(msg *message.Message) {
 		czap.Float64("one", l.One),
 		czap.Float64("five", l.Five),
 		czap.Float64("fifteen", l.Fifteen),
+	)
+}
+
+// MemInfoInfluxDB processes MemInfo messages and saves to InfluxDB.
+func (c *Client) MemInfoInfluxDB(msg *message.Message) {
+	m := memf.Deserialize(msg.DataBytes())
+	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
+	fields := map[string]interface{}{
+		"total_ram":  m.TotalRAM,
+		"free_ram":   m.FreeRAM,
+		"shared_ram": m.SharedRAM,
+		"buffer_ram": m.BufferRAM,
+		"total_swap": m.TotalSwap,
+		"free_swap":  m.FreeSwap,
+	}
+	pt, err := influx.NewPoint("memory", tags, fields, time.Unix(0, m.Timestamp).UTC())
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "create point"),
+			zap.String("client", string(c.Conf.IDBytes())),
+			zap.String("stat", "meminfo"),
+		)
+	} else {
+		c.InfluxClient.pointsCh <- []*influx.Point{pt}
+	}
+}
+
+// MemInfoFile processes MemInfo messages and saves to file as JSON.
+func (c *Client) MemInfoFile(msg *message.Message) {
+	m := memf.Deserialize(msg.DataBytes())
+	c.Data.Info(
+		"meminfo",
+		czap.String("ts", c.FormattedTime(m.Timestamp)),
+		czap.Uint64("total_ram", m.TotalRAM),
+		czap.Uint64("free_ram", m.FreeRAM),
+		czap.Uint64("shared_ram", m.SharedRAM),
+		czap.Uint64("buffer_ram", m.BufferRAM),
+		czap.Uint64("total_swap", m.TotalSwap),
+		czap.Uint64("free_swap", m.FreeSwap),
 	)
 }
 
