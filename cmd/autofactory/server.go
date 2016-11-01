@@ -53,7 +53,7 @@ type server struct {
 	influxPass    string
 	idGen         snoflinga.Generator
 	TSLayout      string //the layout for timestamps
-	UseTS         bool
+	UseTS         bool   // TODO work out how this should be used; currentyl, it's a bit haphazard.
 }
 
 func newServer() *server {
@@ -197,6 +197,7 @@ type Client struct {
 	*InfluxClient
 	isConnected    bool
 	CPUUtilization func(*message.Message)
+	LoadAvg        func(*message.Message)
 	tsLayout       string //the layout for timestamps
 	useTS          bool
 	// Data is a child Data Logger with relevant context for when output is to a File.
@@ -210,8 +211,10 @@ func (c *Client) SetFuncs() {
 	switch outputType {
 	case output.File:
 		c.CPUUtilization = c.CPUUtilizationFile
+		c.LoadAvg = c.LoadAvgFile
 	case output.InfluxDB:
 		c.CPUUtilization = c.CPUUtilizationInfluxDB
+		c.LoadAvg = c.LoadAvgInfluxDB
 	}
 }
 
@@ -319,24 +322,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"loadavg",
 			zap.String("client", string(c.Conf.Hostname())),
 		)
-		l := loadf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		fields := map[string]interface{}{
-			"one":     l.One,
-			"five":    l.Five,
-			"fifteen": l.Fifteen,
-		}
-		pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
-		if err != nil {
-			log.Error(
-				err.Error(),
-				zap.String("op", "create point"),
-				zap.String("client", string(c.Conf.IDBytes())),
-				zap.String("stat", "loadavg"),
-			)
-		} else {
-			c.InfluxClient.pointsCh <- []*influx.Point{pt}
-		}
+		c.LoadAvg(msg)
 	case message.MemInfo:
 		log.Debug(
 			"meminfo",
@@ -498,6 +484,40 @@ func (c *Client) CPUUtilizationFile(msg *message.Message) {
 		czap.Object("data", cpus),
 	)
 
+}
+
+// LoadAvgInfluxDB processes LoadAvg messages and saves to InfluxDB.
+func (c *Client) LoadAvgInfluxDB(msg *message.Message) {
+	l := loadf.Deserialize(msg.DataBytes())
+	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
+	fields := map[string]interface{}{
+		"one":     l.One,
+		"five":    l.Five,
+		"fifteen": l.Fifteen,
+	}
+	pt, err := influx.NewPoint("loadavg", tags, fields, time.Unix(0, l.Timestamp).UTC())
+	if err != nil {
+		log.Error(
+			err.Error(),
+			zap.String("op", "create point"),
+			zap.String("client", string(c.Conf.IDBytes())),
+			zap.String("stat", "loadavg"),
+		)
+	} else {
+		c.InfluxClient.pointsCh <- []*influx.Point{pt}
+	}
+}
+
+// LoadAvgFile process LoadAvg messages and saves to the data file as JSON.
+func (c *Client) LoadAvgFile(msg *message.Message) {
+	l := loadf.Deserialize(msg.DataBytes())
+	c.Data.Info(
+		"loadavg",
+		czap.String("ts", c.FormattedTime(l.Timestamp)),
+		czap.Float64("one", l.One),
+		czap.Float64("five", l.Five),
+		czap.Float64("fifteen", l.Fifteen),
+	)
 }
 
 // FormattedTime returns the nanoseconds as a formatted datetime string using
