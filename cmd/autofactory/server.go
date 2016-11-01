@@ -199,6 +199,7 @@ type Client struct {
 	CPUUtilization func(*message.Message)
 	LoadAvg        func(*message.Message)
 	MemInfo        func(*message.Message)
+	NetUsage       func(*message.Message)
 	tsLayout       string //the layout for timestamps
 	useTS          bool
 	// Data is a child Data Logger with relevant context for when output is to a File.
@@ -214,10 +215,12 @@ func (c *Client) SetFuncs() {
 		c.CPUUtilization = c.CPUUtilizationFile
 		c.LoadAvg = c.LoadAvgFile
 		c.MemInfo = c.MemInfoFile
+		c.NetUsage = c.NetUsageFile
 	case output.InfluxDB:
 		c.CPUUtilization = c.CPUUtilizationInfluxDB
 		c.LoadAvg = c.LoadAvgInfluxDB
 		c.MemInfo = c.MemInfoInfluxDB
+		c.NetUsage = c.NetUsageFile
 	}
 }
 
@@ -337,48 +340,7 @@ func (c *Client) processBinaryMessage(p []byte) error {
 			"netusage",
 			zap.String("client", string(c.Conf.Hostname())),
 		)
-		ifaces := netf.Deserialize(msg.DataBytes())
-		tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
-		// Make a slice of points whose length is equal to the number of Interfaces
-		// and process the interfaces.
-		pts := make([]*influx.Point, 0, len(ifaces.Interfaces))
-		for _, iFace := range ifaces.Interfaces {
-			tags["interface"] = string(iFace.Name)
-			fields := map[string]interface{}{
-				"received.bytes":         iFace.RBytes,
-				"received.packets":       iFace.RPackets,
-				"received.errs":          iFace.RErrs,
-				"received.drop":          iFace.RDrop,
-				"received.fifo":          iFace.RFIFO,
-				"received.frame":         iFace.RFrame,
-				"received.compressed":    iFace.RCompressed,
-				"received.multicast":     iFace.RMulticast,
-				"transmitted.bytes":      iFace.TBytes,
-				"transmitted.packets":    iFace.TPackets,
-				"transmitted.errs":       iFace.TErrs,
-				"transmitted.drop":       iFace.TDrop,
-				"transmitted.fifo":       iFace.TFIFO,
-				"transmitted.colls":      iFace.TColls,
-				"transmitted.carrier":    iFace.TCarrier,
-				"transmitted.compressed": iFace.TCompressed,
-			}
-			pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, ifaces.Timestamp).UTC())
-			if err != nil {
-				log.Error(
-					err.Error(),
-					zap.String("op", "create point"),
-					zap.String("client", string(c.Conf.IDBytes())),
-					zap.String("stat", "netusage"),
-					zap.String("interface", string(iFace.Name)),
-				)
-				continue
-			}
-			pts = append(pts, pt)
-		}
-		// only send if there were any points generated
-		if len(pts) > 0 {
-			c.InfluxClient.pointsCh <- pts
-		}
+		c.NetUsage(msg)
 	case message.SysInfoJSON:
 		log.Debug(
 			"sysinfojson",
@@ -541,6 +503,83 @@ func (c *Client) MemInfoFile(msg *message.Message) {
 		czap.Uint64("total_swap", m.TotalSwap),
 		czap.Uint64("free_swap", m.FreeSwap),
 	)
+}
+
+// NetUsageInfluxDB processes NetUSage messages and saves them to InfluxDB
+func (c *Client) NetUsageInfluxDB(msg *message.Message) {
+	ifaces := netf.Deserialize(msg.DataBytes())
+	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
+	// Make a slice of points whose length is equal to the number of Interfaces
+	// and process the interfaces.
+	pts := make([]*influx.Point, 0, len(ifaces.Interfaces))
+	for _, iFace := range ifaces.Interfaces {
+		tags["interface"] = string(iFace.Name)
+		fields := map[string]interface{}{
+			"received.bytes":         iFace.RBytes,
+			"received.packets":       iFace.RPackets,
+			"received.errs":          iFace.RErrs,
+			"received.drop":          iFace.RDrop,
+			"received.fifo":          iFace.RFIFO,
+			"received.frame":         iFace.RFrame,
+			"received.compressed":    iFace.RCompressed,
+			"received.multicast":     iFace.RMulticast,
+			"transmitted.bytes":      iFace.TBytes,
+			"transmitted.packets":    iFace.TPackets,
+			"transmitted.errs":       iFace.TErrs,
+			"transmitted.drop":       iFace.TDrop,
+			"transmitted.fifo":       iFace.TFIFO,
+			"transmitted.colls":      iFace.TColls,
+			"transmitted.carrier":    iFace.TCarrier,
+			"transmitted.compressed": iFace.TCompressed,
+		}
+		pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, ifaces.Timestamp).UTC())
+		if err != nil {
+			log.Error(
+				err.Error(),
+				zap.String("op", "create point"),
+				zap.String("client", string(c.Conf.IDBytes())),
+				zap.String("stat", "netusage"),
+				zap.String("interface", string(iFace.Name)),
+			)
+			continue
+		}
+		pts = append(pts, pt)
+	}
+	// only send if there were any points generated
+	if len(pts) > 0 {
+		c.InfluxClient.pointsCh <- pts
+	}
+}
+
+// NetUsageFile processes NetUsage messages and writes it to the data file as
+// JSON. Each interface is it's own entry
+func (c *Client) NetUsageFile(msg *message.Message) {
+	ifaces := netf.Deserialize(msg.DataBytes())
+	for _, inf := range ifaces.Interfaces {
+		ts := c.FormattedTime(ifaces.Timestamp)
+		c.Data.Info(
+			"netusage",
+			czap.String("ts", ts),
+			czap.Int64("tdelta", ifaces.TimeDelta),
+			czap.String("name", inf.Name),
+			czap.Int64("rbytes", inf.RBytes),
+			czap.Int64("rpackets", inf.RPackets),
+			czap.Int64("rerrs", inf.RErrs),
+			czap.Int64("rdrop", inf.RDrop),
+			czap.Int64("rfifo", inf.RFIFO),
+			czap.Int64("rframe", inf.RFrame),
+			czap.Int64("rcompressed", inf.RCompressed),
+			czap.Int64("tmulticast", inf.RMulticast),
+			czap.Int64("tbytes", inf.TBytes),
+			czap.Int64("tpackets", inf.TPackets),
+			czap.Int64("terrs", inf.TErrs),
+			czap.Int64("tdrop", inf.TDrop),
+			czap.Int64("tfifo", inf.TFIFO),
+			czap.Int64("tcolls", inf.TColls),
+			czap.Int64("tcarrier", inf.TCarrier),
+			czap.Int64("rcompressed", inf.TCompressed),
+		)
+	}
 }
 
 // FormattedTime returns the nanoseconds as a formatted datetime string using
