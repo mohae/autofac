@@ -374,6 +374,8 @@ func (c *Client) processBinaryMessage(p []byte) error {
 	return nil
 }
 
+// CPUUtilizationInfluxDB processes CPUUtilization messages and saves to
+// InfluxDB
 func (c *Client) CPUUtilizationInfluxDB(msg *message.Message) {
 	cpus := cpuutil.Deserialize(msg.DataBytes())
 	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
@@ -408,6 +410,8 @@ func (c *Client) CPUUtilizationInfluxDB(msg *message.Message) {
 	}
 }
 
+// CPUUtilizationInfluxDB processes CPUUtilization messages and saves to file
+// as JSON.
 func (c *Client) CPUUtilizationFile(msg *message.Message) {
 	// using Object means that timestamp will be a replicated field, as ts and
 	// timestamp, with timestamp being the int64 because I don't want to write
