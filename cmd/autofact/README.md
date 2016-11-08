@@ -1,7 +1,9 @@
 autofact
 ===========
 
-Autofact collects basic data about the system on which it runs for system monitoring purposes. Autofact can be be run serverless or connected to [Autofactory](https://github.com/mohae/autofact/tree/master/cmd/autofactory).
+Autofact collects basic data about the system on which it runs for system monitoring purposes. It's goal is to minimize both the amount of CPU time it takes and the memory it allocates during data collection, maximizing the CPU time available for the program(s) running on the client.
+
+Autofact can be be run serverless or connected to [Autofactory](https://github.com/mohae/autofact/tree/master/cmd/autofactory).
 
 All Autofact related configurations and files are written to `$HOME/.autofact` This can be overriden by setting the `AUTOFACT_PATH` env variable.
 

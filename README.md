@@ -3,7 +3,13 @@
 >
 >   -Philip K. Dick,  _Autofac_
 
-Communications between the server and client are via websockets and most messages are serialized using [flatbuffers.](https://google.github.io/flatbuffers/)  An inventory of clients is persisted using [boltdb.](https://github.com/boltdb/bolt)
+Autofact collects information about a client, this can either be logged locally or sent to a central collector, [autofactory](https://github.com/mohae/autofact/tree/master/cmd/autofactory). Autofact's goal is to collect information about a client's usage with minimal impact on the client on which it is running. To accomplish this, Autofact uses [joefriday](https://github.com/mohae/joefriday) to collect the information, which was created to minimize CPU usage and memory allocations during data collection.
+
+Autofact, on start-up, will collect information about the system on which it is running: CPU, RAM, network interfaces, Kernel, and OS. Once running, it collects, at minimum, the system's loadavg on a regular interval. It can also collect a client's CPU utilization, RAM usage, and network usage. This data is either collected locally as JSON or sent to Autofactory as Flatbuffer serialized bytes.
+
+Communications between the server and client are via websockets and most messages are serialized using [flatbuffers.](https://google.github.io/flatbuffers/)  An inventory of clients is persisted using [boltdb.](https://github.com/boltdb/bolt).
+
+When Autofactory is used, it can either save the data to [InfluxDB](https://influxdata.com) or as JSON to `stdout` or some other output destination.
 
 This is a work in progress.
 
@@ -11,8 +17,8 @@ At this point in time, nothing is encrypted and `ws` is being used so definitely
 
 Currently, only Linux systems are supported and this has only been tested on Debian Jessie.
 
-## Dependencies
-[InfluxDB](https://influxdata.com/) is used to store the facts.  Currently, it is assumed that InfluxDB is on the localhost and listening on port `8086`.
+## Optional Dependencies
+[InfluxDB](https://influxdata.com/) can be used to store the facts.  Currently, it is assumed that InfluxDB is on the localhost and listening on port `8086`.
 
 To install follow the instructions: https://influxdata.com/downloads/.
 
@@ -32,10 +38,11 @@ InfluxDB shell 0.10.2
 Use the graph and dashboard builder of your choice: [Grafana](http://grafana.org/) is one option.
 
 ## autofactory
-Autofactory is the server.  By default, it listens on `:8675` and processes incoming messages, sending responses to the client as appropriate.  Generally, this means printing out what the client sent.  In the future it will probably do something with the received messages.
+[Autofactory](https://github.com/mohae/autofact/tree/master/cmd/autofactory) is the optional server.  By default, it listens on `:8675` and processes incoming messages.
 
-When a client connects, it responds with either the client's ID, if it is a new client, or a welcome back message.  It also sends the client information on how it should behave.
+When a client connects, it responds with the client configuration, which defines what data is to be collected and the invterval of its colleciton. If the client is a new client, the client's ID will also be sent.
 
 This component is not necessary if autofact is running in serverless mode.
+
 ## autofact
-Autofact runs on client nodes; it can also be run in serverless mode.
+[Autofact](https://github.com/mohae/autofact/tree/master/cmd/autofactor) runs on client nodes. This is the only required component. It can be run in serverless mode, which will output the data, as JSON, to a local destination, which defaults to `stdout`. In client-server mode, it sends the collected data to the Autofactory server.
