@@ -16,11 +16,11 @@ import (
 // Defaults for Client Conf: if file doesn't exist.
 var (
 	// Pull
-	DefaultHealthbeatPeriod = util.Duration{10 * time.Second}
+	DefaultHealthbeatPeriod = util.Duration{1 * time.Second}
 	// Client Side
-	DefaultMemInfoPeriod        = util.Duration{15 * time.Second}
-	DefaultCPUUtilizationPeriod = util.Duration{15 * time.Second}
-	DefaultNetUsagePeriod       = util.Duration{15 * time.Second}
+	DefaultMemInfoPeriod        = util.Duration{5 * time.Second}
+	DefaultCPUUtilizationPeriod = util.Duration{5 * time.Second}
+	DefaultNetUsagePeriod       = util.Duration{5 * time.Second}
 )
 
 // Conf is used to hold flag arguments passed on start
