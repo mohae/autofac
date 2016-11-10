@@ -5,8 +5,8 @@
 	"server_id": 0,
 	"connect_interval": "5s",
 	"connect_period": "15m",
-	"healthbeat_period": "10s",
-	"cpuutilization_period": "15s",
-	"meminfo_period": "15s",
-	"netusage_period": "15s",
+	"healthbeat_period": "1s",
+	"cpuutilization_period": "5s",
+	"meminfo_period": "5s",
+	"netusage_period": "5s",
 }
