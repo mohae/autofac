@@ -219,40 +219,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 				}
 				continue
 			}
-			if bytes.Equal(p, autofact.AckMsg) {
-				// if this is an acknowledgement message, do nothing
-				// TODO: should tracking of acks, per message, for certain
-				// message kinds be done?
-				continue
-			}
-			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				if _, ok := err.(*websocket.CloseError); !ok {
-					return
-				}
-				fmt.Println("reconnect from writing message: textmessage")
-				connected := c.Reconnect()
-				if connected {
-					continue
-				}
-				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
-				return
-			}
 		case websocket.BinaryMessage:
-			err = c.WS.WriteMessage(websocket.TextMessage, autofact.AckMsg)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error writing binary message: %s\n", err)
-				if _, ok := err.(*websocket.CloseError); !ok {
-					return
-				}
-				fmt.Println("reconnect from writing message: binarymessage")
-				connected := c.Reconnect()
-				if connected {
-					continue
-				}
-				fmt.Fprintln(os.Stderr, "unable to reconnect to server")
-				return
-			}
 			c.processBinaryMessage(p)
 		case websocket.CloseMessage:
 			fmt.Printf("closemessage: %x\n", p)
