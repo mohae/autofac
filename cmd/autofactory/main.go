@@ -242,9 +242,9 @@ newLog:
 		zap.NewJSONEncoder(
 			zap.RFC3339Formatter("ts"),
 		),
+		*loglevel,
 		zap.Output(logFile),
 	)
-	log.SetLevel(*loglevel)
 }
 
 // CloseOut closes the output files.  This should be called before any os.Exit.
@@ -284,8 +284,8 @@ newData:
 		czap.NewJSONEncoder(
 			czap.NoTime(),
 		),
+		czap.InfoLevel,
 		czap.Output(dataFile),
 	)
-	data.SetLevel(czap.InfoLevel)
 	return nil
 }

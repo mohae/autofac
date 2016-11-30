@@ -35,6 +35,7 @@ var (
 	// client configuration: used for serverless
 	serverless bool
 	startInfo  bool
+	dataLevel  = "data"
 )
 
 // Vars for logging and local data output, if applicable.
@@ -70,7 +71,7 @@ func init() {
 	connConf.ConnectInterval.Duration = 5 * time.Second
 	connConf.ConnectPeriod.Duration = 15 * time.Minute
 
-	// override czap description for InfoLevel
+	// set custom level desc
 	czap.InfoString = "data"
 }
 
@@ -231,9 +232,9 @@ newLog:
 		zap.NewJSONEncoder(
 			zap.NoTime(),
 		),
+		*loglevel,
 		zap.Output(logFile),
 	)
-	log.SetLevel(*loglevel)
 }
 
 func SetDataOut() {
@@ -261,9 +262,9 @@ newData:
 		czap.NewJSONEncoder(
 			czap.NoTime(), // the time should be added using the specified layout
 		),
+		czap.InfoLevel,
 		czap.Output(dataFile),
 	)
-	data.SetLevel(czap.InfoLevel)
 }
 
 // CloseOut closes the local output destinations before shutdown.
