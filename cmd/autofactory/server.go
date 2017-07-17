@@ -13,10 +13,10 @@ import (
 	"github.com/mohae/autofact/db"
 	"github.com/mohae/autofact/message"
 	"github.com/mohae/autofact/util"
-	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
-	netf "github.com/mohae/joefriday/net/usage/flat"
-	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
-	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
+	"github.com/mohae/joefriday/cpu/cpuutil/flat"
+	"github.com/mohae/joefriday/net/netusage/flat"
+	"github.com/mohae/joefriday/sysinfo/loadavg/flat"
+	"github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/randchars"
 	"github.com/mohae/snoflinga"
 	"github.com/mohae/systeminfo"
@@ -437,7 +437,7 @@ func (c *Client) CPUUtilizationFile(msg *message.Message) {
 
 // LoadAvgInfluxDB processes LoadAvg messages and saves to InfluxDB.
 func (c *Client) LoadAvgInfluxDB(msg *message.Message) {
-	l := loadf.Deserialize(msg.DataBytes())
+	l := loadavg.Deserialize(msg.DataBytes())
 	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 	fields := map[string]interface{}{
 		"one":     l.One,
@@ -459,7 +459,7 @@ func (c *Client) LoadAvgInfluxDB(msg *message.Message) {
 
 // LoadAvgFile processes LoadAvg messages and saves to the data file as JSON.
 func (c *Client) LoadAvgFile(msg *message.Message) {
-	l := loadf.Deserialize(msg.DataBytes())
+	l := loadavg.Deserialize(msg.DataBytes())
 	c.Data.Info(
 		"loadavg",
 		czap.String("ts", c.FormattedTime(l.Timestamp)),
@@ -471,7 +471,7 @@ func (c *Client) LoadAvgFile(msg *message.Message) {
 
 // MemInfoInfluxDB processes MemInfo messages and saves to InfluxDB.
 func (c *Client) MemInfoInfluxDB(msg *message.Message) {
-	m := memf.Deserialize(msg.DataBytes())
+	m := mem.Deserialize(msg.DataBytes())
 	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 	fields := map[string]interface{}{
 		"total_ram":  m.TotalRAM,
@@ -496,7 +496,7 @@ func (c *Client) MemInfoInfluxDB(msg *message.Message) {
 
 // MemInfoFile processes MemInfo messages and saves to file as JSON.
 func (c *Client) MemInfoFile(msg *message.Message) {
-	m := memf.Deserialize(msg.DataBytes())
+	m := mem.Deserialize(msg.DataBytes())
 	c.Data.Info(
 		"meminfo",
 		czap.String("ts", c.FormattedTime(m.Timestamp)),
@@ -511,39 +511,39 @@ func (c *Client) MemInfoFile(msg *message.Message) {
 
 // NetUsageInfluxDB processes NetUSage messages and saves them to InfluxDB
 func (c *Client) NetUsageInfluxDB(msg *message.Message) {
-	ifaces := netf.Deserialize(msg.DataBytes())
+	devs := netusage.Deserialize(msg.DataBytes())
 	tags := map[string]string{"host": string(c.Conf.Hostname()), "region": string(c.Conf.Region())}
 	// Make a slice of points whose length is equal to the number of Interfaces
 	// and process the interfaces.
-	pts := make([]*influx.Point, 0, len(ifaces.Interfaces))
-	for _, iFace := range ifaces.Interfaces {
-		tags["interface"] = string(iFace.Name)
+	pts := make([]*influx.Point, 0, len(devs.Device))
+	for _, dev := range devs.Device {
+		tags["device"] = string(dev.Name)
 		fields := map[string]interface{}{
-			"received.bytes":         iFace.RBytes,
-			"received.packets":       iFace.RPackets,
-			"received.errs":          iFace.RErrs,
-			"received.drop":          iFace.RDrop,
-			"received.fifo":          iFace.RFIFO,
-			"received.frame":         iFace.RFrame,
-			"received.compressed":    iFace.RCompressed,
-			"received.multicast":     iFace.RMulticast,
-			"transmitted.bytes":      iFace.TBytes,
-			"transmitted.packets":    iFace.TPackets,
-			"transmitted.errs":       iFace.TErrs,
-			"transmitted.drop":       iFace.TDrop,
-			"transmitted.fifo":       iFace.TFIFO,
-			"transmitted.colls":      iFace.TColls,
-			"transmitted.carrier":    iFace.TCarrier,
-			"transmitted.compressed": iFace.TCompressed,
+			"received.bytes":         dev.RBytes,
+			"received.packets":       dev.RPackets,
+			"received.errs":          dev.RErrs,
+			"received.drop":          dev.RDrop,
+			"received.fifo":          dev.RFIFO,
+			"received.frame":         dev.RFrame,
+			"received.compressed":    dev.RCompressed,
+			"received.multicast":     dev.RMulticast,
+			"transmitted.bytes":      dev.TBytes,
+			"transmitted.packets":    dev.TPackets,
+			"transmitted.errs":       dev.TErrs,
+			"transmitted.drop":       dev.TDrop,
+			"transmitted.fifo":       dev.TFIFO,
+			"transmitted.colls":      dev.TColls,
+			"transmitted.carrier":    dev.TCarrier,
+			"transmitted.compressed": dev.TCompressed,
 		}
-		pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, ifaces.Timestamp).UTC())
+		pt, err := influx.NewPoint("interfaces", tags, fields, time.Unix(0, devs.Timestamp).UTC())
 		if err != nil {
 			log.Error(
 				err.Error(),
 				zap.String("op", "create point"),
 				zap.String("client", string(c.Conf.IDBytes())),
 				zap.String("stat", "netusage"),
-				zap.String("interface", string(iFace.Name)),
+				zap.String("device", string(dev.Name)),
 			)
 			continue
 		}
@@ -558,30 +558,30 @@ func (c *Client) NetUsageInfluxDB(msg *message.Message) {
 // NetUsageFile processes NetUsage messages and writes it to the data file as
 // JSON. Each interface is it's own entry
 func (c *Client) NetUsageFile(msg *message.Message) {
-	ifaces := netf.Deserialize(msg.DataBytes())
-	for _, inf := range ifaces.Interfaces {
-		ts := c.FormattedTime(ifaces.Timestamp)
+	devs := netusage.Deserialize(msg.DataBytes())
+	for _, dev := range devs.Device {
+		ts := c.FormattedTime(devs.Timestamp)
 		c.Data.Info(
 			"netusage",
 			czap.String("ts", ts),
-			czap.Int64("tdelta", ifaces.TimeDelta),
-			czap.String("name", inf.Name),
-			czap.Int64("rbytes", inf.RBytes),
-			czap.Int64("rpackets", inf.RPackets),
-			czap.Int64("rerrs", inf.RErrs),
-			czap.Int64("rdrop", inf.RDrop),
-			czap.Int64("rfifo", inf.RFIFO),
-			czap.Int64("rframe", inf.RFrame),
-			czap.Int64("rcompressed", inf.RCompressed),
-			czap.Int64("tmulticast", inf.RMulticast),
-			czap.Int64("tbytes", inf.TBytes),
-			czap.Int64("tpackets", inf.TPackets),
-			czap.Int64("terrs", inf.TErrs),
-			czap.Int64("tdrop", inf.TDrop),
-			czap.Int64("tfifo", inf.TFIFO),
-			czap.Int64("tcolls", inf.TColls),
-			czap.Int64("tcarrier", inf.TCarrier),
-			czap.Int64("rcompressed", inf.TCompressed),
+			czap.Int64("tdelta", devs.TimeDelta),
+			czap.String("name", dev.Name),
+			czap.Int64("rbytes", dev.RBytes),
+			czap.Int64("rpackets", dev.RPackets),
+			czap.Int64("rerrs", dev.RErrs),
+			czap.Int64("rdrop", dev.RDrop),
+			czap.Int64("rfifo", dev.RFIFO),
+			czap.Int64("rframe", dev.RFrame),
+			czap.Int64("rcompressed", dev.RCompressed),
+			czap.Int64("tmulticast", dev.RMulticast),
+			czap.Int64("tbytes", dev.TBytes),
+			czap.Int64("tpackets", dev.TPackets),
+			czap.Int64("terrs", dev.TErrs),
+			czap.Int64("tdrop", dev.TDrop),
+			czap.Int64("tfifo", dev.TFIFO),
+			czap.Int64("tcolls", dev.TColls),
+			czap.Int64("tcarrier", dev.TCarrier),
+			czap.Int64("rcompressed", dev.TCompressed),
 		)
 	}
 }

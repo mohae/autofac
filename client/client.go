@@ -12,10 +12,10 @@ import (
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
-	cpuutil "github.com/mohae/joefriday/cpu/utilization/flat"
-	netf "github.com/mohae/joefriday/net/usage/flat"
-	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
-	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
+	"github.com/mohae/joefriday/cpu/cpuutil/flat"
+	"github.com/mohae/joefriday/net/netusage/flat"
+	"github.com/mohae/joefriday/sysinfo/loadavg/flat"
+	"github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
 	"github.com/uber-go/zap"
 )
@@ -236,7 +236,7 @@ func (c *Client) Listen(doneCh chan struct{}) {
 
 // LoadAvg gets the current loadavg and pushes the bytes into the message queue
 func (c *Client) LoadAvg() error {
-	p, err := loadf.Get()
+	p, err := loadavg.Get()
 	if err != nil {
 		return err
 	}
@@ -286,12 +286,12 @@ func (c *Client) MemInfo(doneCh chan struct{}) {
 		return
 	}
 	// ticker for meminfo data
-	memTicker, err := memf.NewTicker(time.Duration(c.Conf.MemInfoPeriod()))
+	memTicker, err := mem.NewTicker(time.Duration(c.Conf.MemInfoPeriod()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error creating ticker for MemInfo: %s", err)
 		return
 	}
-	memTickr := memTicker.(*memf.Ticker)
+	memTickr := memTicker.(*mem.Ticker)
 	defer memTickr.Close()
 	defer memTickr.Stop()
 	for {
@@ -314,12 +314,12 @@ func (c *Client) NetUsage(doneCh chan struct{}) {
 		return
 	}
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Conf.NetUsagePeriod()))
+	netTicker, err := netusage.NewTicker(time.Duration(c.Conf.NetUsagePeriod()))
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "NetUsage: error creating ticker: %s", err)
 		return
 	}
-	netTickr := netTicker.(*netf.Ticker)
+	netTickr := netTicker.(*netusage.Ticker)
 	// make sure the resources get cleaned up
 	defer netTickr.Close()
 	defer netTickr.Stop()

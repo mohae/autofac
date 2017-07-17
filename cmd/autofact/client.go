@@ -13,13 +13,13 @@ import (
 	"github.com/mohae/autofact"
 	"github.com/mohae/autofact/conf"
 	"github.com/mohae/autofact/message"
-	cpuutil "github.com/mohae/joefriday/cpu/utilization"
-	cpuutilf "github.com/mohae/joefriday/cpu/utilization/flat"
-	net "github.com/mohae/joefriday/net/usage"
-	netf "github.com/mohae/joefriday/net/usage/flat"
-	load "github.com/mohae/joefriday/sysinfo/load"
-	loadf "github.com/mohae/joefriday/sysinfo/load/flat"
-	mem "github.com/mohae/joefriday/sysinfo/mem"
+	"github.com/mohae/joefriday/cpu/cpuutil"
+	cpuutilf "github.com/mohae/joefriday/cpu/cpuutil/flat"
+	"github.com/mohae/joefriday/net/netusage"
+	netusagef "github.com/mohae/joefriday/net/netusage/flat"
+	"github.com/mohae/joefriday/sysinfo/loadavg"
+	loadavgf "github.com/mohae/joefriday/sysinfo/loadavg/flat"
+	"github.com/mohae/joefriday/sysinfo/mem"
 	memf "github.com/mohae/joefriday/sysinfo/mem/flat"
 	"github.com/mohae/snoflinga"
 	"github.com/mohae/systeminfo"
@@ -551,7 +551,7 @@ func (c *Client) NetUsageFB(doneCh chan struct{}) {
 		return
 	}
 	// ticker for network usage data
-	netTicker, err := netf.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
+	netTicker, err := netusagef.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -560,7 +560,7 @@ func (c *Client) NetUsageFB(doneCh chan struct{}) {
 		)
 		return
 	}
-	netTickr := netTicker.(*netf.Ticker)
+	netTickr := netTicker.(*netusagef.Ticker)
 	// make sure the resources get cleaned up
 	defer netTickr.Close()
 	defer netTickr.Stop()
@@ -589,7 +589,7 @@ func (c *Client) NetUsageLocal(doneCh chan struct{}) {
 		return
 	}
 	// ticker for network usage data
-	netTicker, err := net.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
+	netTicker, err := netusage.NewTicker(time.Duration(c.Collect.NetUsagePeriod.Int64()))
 	if err != nil {
 		log.Error(
 			err.Error(),
@@ -598,7 +598,7 @@ func (c *Client) NetUsageLocal(doneCh chan struct{}) {
 		)
 		return
 	}
-	netTickr := netTicker.(*net.Ticker)
+	netTickr := netTicker.(*netusage.Ticker)
 	// make sure the resources get cleaned up
 	defer netTickr.Close()
 	defer netTickr.Stop()
@@ -618,7 +618,7 @@ func (c *Client) NetUsageLocal(doneCh chan struct{}) {
 					"netusage",
 					czap.Int64("ts", v.Timestamp),
 					czap.Int64("TimeDelta", v.TimeDelta),
-					czap.Object("Interfaces", v.Interfaces),
+					czap.Object("Devices", v.Device),
 				)
 				continue
 			}
@@ -626,7 +626,7 @@ func (c *Client) NetUsageLocal(doneCh chan struct{}) {
 				"netusage",
 				czap.String("ts", c.FormattedTime(v.Timestamp)),
 				czap.Int64("TimeDelta", v.TimeDelta),
-				czap.Object("Interfaces", v.Interfaces),
+				czap.Object("Deviceses", v.Device),
 			)
 		case <-doneCh:
 			return
@@ -726,8 +726,8 @@ func (c *Client) SystemInfoServerless() {
 	}
 	// In multi-processor systems, only the information from the first
 	// processor is captured; it is assumed that all processors on the
-	// system are the same.
-	infs := strings.Join(s.NetInfs, " ")
+	// system are the same. TODO: revisit this assumption.
+	devs := strings.Join(s.NetDev, " ")
 	data.Warn(
 		"systeminfo",
 		czap.String("kernel", s.KernelOS),
@@ -740,17 +740,17 @@ func (c *Client) SystemInfoServerless() {
 		czap.String("version_id", s.OSVersion),
 		czap.Uint64("mem_total", s.MemTotal),
 		czap.Uint64("swap_total", s.SwapTotal),
-		czap.String("net_infs", infs),
-		czap.Int("processors", len(s.Chips)),
-		czap.String("cpu_vendor", s.Chips[0].VendorID),
-		czap.String("cpu_family", s.Chips[0].CPUFamily),
-		czap.String("model", s.Chips[0].Model),
-		czap.String("model_name", s.Chips[0].ModelName),
-		czap.String("stepping", s.Chips[0].Stepping),
-		czap.String("microcode", s.Chips[0].Microcode),
-		czap.Float64("cpu_mhz", float64(s.Chips[0].CPUMHz)),
-		czap.String("cache_size", s.Chips[0].CacheSize),
-		czap.Int("cpu_cores", int(s.Chips[0].CPUCores)),
+		czap.String("net_infs", devs),
+		czap.Int("sockets", len(s.Socket)),
+		czap.String("cpu_vendor", s.Socket[0].VendorID),
+		czap.String("cpu_family", s.Socket[0].CPUFamily),
+		czap.String("model", s.Socket[0].Model),
+		czap.String("model_name", s.Socket[0].ModelName),
+		czap.String("stepping", s.Socket[0].Stepping),
+		czap.String("microcode", s.Socket[0].Microcode),
+		czap.Float64("cpu_mhz", float64(s.Socket[0].CPUMHz)),
+		czap.String("cache_size", s.Socket[0].CacheSize),
+		czap.Int("cpu_cores", int(s.Socket[0].CPUCores)),
 	)
 }
 
@@ -790,10 +790,10 @@ func (c *Client) FormattedTime(t int64) string {
 
 // LoadAvgFB gets the current loadavg as Flatbuffer serialized bytes.
 func LoadAvgFB() ([]byte, error) {
-	return loadf.Get()
+	return loadavgf.Get()
 }
 
 // LoadAvg gets the current loadavg.
-func LoadAvg() (load.LoadAvg, error) {
-	return load.Get()
+func LoadAvg() (loadavg.LoadAvg, error) {
+	return loadavg.Get()
 }
